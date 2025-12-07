@@ -36,7 +36,7 @@ const (
 // +kubebuilder:rbac:groups=infra.hkc.io,resources=hcloudservers/finalizers,verbs=update
 type HCloudServerReconciler struct {
 	client.Client
-	Scheme      *runtime.Scheme
+	Scheme       *runtime.Scheme
 	HCloudClient *hcloudclient.Client
 }
 

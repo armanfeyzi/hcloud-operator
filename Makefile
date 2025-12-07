@@ -71,8 +71,9 @@ test: manifests generate fmt vet envtest ## Run unit/integration tests
 		go test ./... -coverprofile cover.out -v
 
 .PHONY: test-e2e
-test-e2e: ## Run end-to-end tests (requires real HCLOUD_TOKEN and cluster)
-	go test ./test/e2e/... -v -timeout 30m
+test-e2e: manifests generate fmt vet envtest ## Run end-to-end tests (requires real HCLOUD_TOKEN and cluster)
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
+		go test ./test/e2e/... -v -timeout 30m
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Docker
