@@ -99,7 +99,7 @@ func TestHCloudServerE2E(t *testing.T) {
 			Namespace: "default", // Although cluster-scoped, client requires namespace for some operations or we omit it.
 		},
 		Spec: infrav1alpha1.HCloudServerSpec{
-			ServerType: "cx21",
+			ServerType: "cx22",
 			Image:      "ubuntu-22.04",
 			Location:   "fsn1",
 			Labels: map[string]string{

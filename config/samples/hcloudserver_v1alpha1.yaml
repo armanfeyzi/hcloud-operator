@@ -3,11 +3,11 @@ kind: HCloudServer
 metadata:
   name: dev-node-1
 spec:
-  serverType: cx21
+  serverType: cx11
   image: ubuntu-22.04
   location: fsn1
   labels:
     env: dev
     managed-by: hcloud-operator
-  sshKeys:
-    - my-ssh-key
+  # sshKeys:
+  #   - my-ssh-key
