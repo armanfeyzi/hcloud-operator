@@ -16,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	infrav1alpha1 "github.com/afeyzirealyticsio/hcloud-operator/api/v1alpha1"
 	"github.com/afeyzirealyticsio/hcloud-operator/internal/controller"
@@ -34,9 +35,11 @@ func TestHCloudServerE2E(t *testing.T) {
 	defer cancel()
 
 	// 1. Setup envtest
+	useExisting := os.Getenv("USE_EXISTING_CLUSTER") == "true"
 	testEnv := &envtest.Environment{
 		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "config", "crd", "bases")},
 		ErrorIfCRDPathMissing: true,
+		UseExistingCluster:    &useExisting,
 	}
 
 	cfg, err := testEnv.Start()
