@@ -33,7 +33,7 @@ kind: HCloudServer
 metadata:
   name: dev-node-1
 spec:
-  serverType: cx21
+  serverType: cx23
   image: ubuntu-22.04
   location: fsn1
 ```
