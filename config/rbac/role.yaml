@@ -1,0 +1,31 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: hcloud-operator-role
+rules:
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudservers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudservers/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudservers/status
+  verbs:
+  - get
+  - patch
+  - update
