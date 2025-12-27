@@ -37,7 +37,7 @@ const (
 type HCloudServerReconciler struct {
 	client.Client
 	Scheme       *runtime.Scheme
-	HCloudClient *hcloudclient.Client
+	HCloudClient hcloudclient.Interface
 }
 
 // SetupWithManager registers the reconciler with the controller manager.
@@ -101,34 +101,34 @@ func (r *HCloudServerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 func (r *HCloudServerReconciler) reconcileHCloudServer(ctx context.Context, obj *infrav1alpha1.HCloudServer) error {
 	log := log.FromContext(ctx)
 
-	// Try to find existing server by stored ID first, then by name.
-	var hcServer interface{ GetID() int64 }
-
+	// If we have a stored server ID, try fetching by ID first.
 	if obj.Status.ServerID != 0 {
 		existing, err := r.HCloudClient.GetServer(ctx, obj.Status.ServerID)
 		if err != nil {
 			return fmt.Errorf("fetch server by ID: %w", err)
 		}
 		if existing != nil {
-			// Server exists — sync status.
 			log.Info("Server exists, syncing status", "serverID", existing.ID)
-			obj.Status.State = string(existing.Status)
-			if existing.PublicNet.IPv4.IP != nil {
-				obj.Status.PublicIPv4 = existing.PublicNet.IPv4.IP.String()
-			}
-			if existing.PublicNet.IPv6.IP != nil {
-				obj.Status.PublicIPv6 = existing.PublicNet.IPv6.Network.String()
-			}
-			r.setCondition(obj, conditionTypeReady, metav1.ConditionTrue, "ServerRunning", "Hetzner server is running")
-			return r.Status().Update(ctx, obj)
+			return r.syncStatus(ctx, obj, existing)
 		}
-		// Server was deleted externally — recreate.
-		log.Info("Server not found by ID, recreating", "serverID", obj.Status.ServerID)
+		// Server was deleted externally — fall through to name-based lookup.
+		log.Info("Server not found by stored ID, checking by name", "serverID", obj.Status.ServerID)
 	}
 
-	_ = hcServer // suppress unused warning until full implementation
+	// Before creating, look up by name. This handles the case where a previous
+	// reconcile created the server in Hetzner but crashed before writing the ID
+	// back to status — without this check we'd spin up a duplicate every time.
+	existing, err := r.HCloudClient.GetServerByName(ctx, obj.Name)
+	if err != nil {
+		return fmt.Errorf("fetch server by name: %w", err)
+	}
+	if existing != nil {
+		log.Info("Adopting existing Hetzner server found by name", "serverID", existing.ID)
+		obj.Status.ServerID = existing.ID
+		return r.syncStatus(ctx, obj, existing)
+	}
 
-	// Create the server.
+	// No server found — create one.
 	log.Info("Creating new Hetzner server", "name", obj.Name, "serverType", obj.Spec.ServerType)
 	created, err := r.HCloudClient.CreateServer(ctx, hcloudclient.ServerCreateOpts{
 		Name:       obj.Name,
@@ -144,12 +144,25 @@ func (r *HCloudServerReconciler) reconcileHCloudServer(ctx context.Context, obj 
 	}
 
 	obj.Status.ServerID = created.ID
-	obj.Status.State = string(created.Status)
-	if created.PublicNet.IPv4.IP != nil {
-		obj.Status.PublicIPv4 = created.PublicNet.IPv4.IP.String()
-	}
+	obj.Status.State = created.State
+	obj.Status.PublicIPv4 = created.PublicIPv4
+	obj.Status.PublicIPv6 = created.PublicIPv6
 	r.setCondition(obj, conditionTypeReady, metav1.ConditionTrue, "ServerCreated", "Hetzner server created successfully")
 
+	return r.Status().Update(ctx, obj)
+}
+
+// syncStatus copies live Hetzner server state into the CRD status and persists it.
+func (r *HCloudServerReconciler) syncStatus(ctx context.Context, obj *infrav1alpha1.HCloudServer, s *hcloudclient.ServerInfo) error {
+	obj.Status.ServerID = s.ID
+	obj.Status.State = s.State
+	if s.PublicIPv4 != "" {
+		obj.Status.PublicIPv4 = s.PublicIPv4
+	}
+	if s.PublicIPv6 != "" {
+		obj.Status.PublicIPv6 = s.PublicIPv6
+	}
+	r.setCondition(obj, conditionTypeReady, metav1.ConditionTrue, "ServerRunning", "Hetzner server is running")
 	return r.Status().Update(ctx, obj)
 }
 
