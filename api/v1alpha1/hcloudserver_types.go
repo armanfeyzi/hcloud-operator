@@ -5,6 +5,9 @@ import (
 )
 
 // HCloudServerSpec defines the desired state of an HCloudServer.
+// +kubebuilder:validation:XValidation:rule="self.serverType == oldSelf.serverType",message="serverType is immutable after creation"
+// +kubebuilder:validation:XValidation:rule="self.image == oldSelf.image",message="image is immutable after creation"
+// +kubebuilder:validation:XValidation:rule="self.location == oldSelf.location",message="location is immutable after creation"
 type HCloudServerSpec struct {
 	// ServerType is the Hetzner Cloud server type (e.g. cx21, cx31, cpx41).
 	// +kubebuilder:validation:Required
@@ -29,8 +32,10 @@ type HCloudServerSpec struct {
 	// +optional
 	SSHKeys []string `json:"sshKeys,omitempty"`
 
-	// UserData is cloud-init user-data to pass to the server.
+	// UserData is cloud-init user-data to pass to the server on first boot.
+	// Must be a valid cloud-config or shell script. Applied once at creation time.
 	// +optional
+	// +kubebuilder:validation:MaxLength=32768
 	UserData string `json:"userData,omitempty"`
 }
 
@@ -48,7 +53,7 @@ type HCloudServerStatus struct {
 	// +optional
 	PublicIPv4 string `json:"publicIPv4,omitempty"`
 
-	// PublicIPv6 is the server's public IPv6 address.
+	// PublicIPv6 is the server's public IPv6 network prefix.
 	// +optional
 	PublicIPv6 string `json:"publicIPv6,omitempty"`
 

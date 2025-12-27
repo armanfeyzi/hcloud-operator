@@ -85,13 +85,23 @@ spec:
                   type: string
                 type: array
               userData:
-                description: UserData is cloud-init user-data to pass to the server.
+                description: |-
+                  UserData is cloud-init user-data to pass to the server on first boot.
+                  Must be a valid cloud-config or shell script. Applied once at creation time.
+                maxLength: 32768
                 type: string
             required:
             - image
             - location
             - serverType
             type: object
+            x-kubernetes-validations:
+            - message: serverType is immutable after creation
+              rule: self.serverType == oldSelf.serverType
+            - message: image is immutable after creation
+              rule: self.image == oldSelf.image
+            - message: location is immutable after creation
+              rule: self.location == oldSelf.location
           status:
             description: HCloudServerStatus defines the observed state of an HCloudServer.
             properties:
@@ -160,7 +170,7 @@ spec:
                 description: PublicIPv4 is the server's public IPv4 address.
                 type: string
               publicIPv6:
-                description: PublicIPv6 is the server's public IPv6 address.
+                description: PublicIPv6 is the server's public IPv6 network prefix.
                 type: string
               serverID:
                 description: ServerID is the Hetzner Cloud internal server ID.
