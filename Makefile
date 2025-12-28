@@ -67,7 +67,7 @@ run: manifests generate fmt vet ## Run the operator locally (requires HCLOUD_TOK
 # ──────────────────────────────────────────────────────────────────────────────
 .PHONY: test
 test: manifests generate fmt vet envtest ## Run unit/integration tests
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path 2>/dev/null || echo $(LOCALBIN)/k8s/$(shell ls $(LOCALBIN)/k8s 2>/dev/null | head -1))" \
 		go test ./... -coverprofile cover.out -v
 
 .PHONY: test-e2e

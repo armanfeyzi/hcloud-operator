@@ -11,6 +11,7 @@ import (
 // The controller uses this type so it doesn't import the hcloud-go SDK directly.
 type ServerInfo struct {
 	ID         int64
+	Name       string
 	State      string
 	PublicIPv4 string
 	PublicIPv6 string
@@ -149,6 +150,7 @@ func (c *Client) DeleteServer(ctx context.Context, id int64) error {
 func toServerInfo(s *hcloudgo.Server) *ServerInfo {
 	info := &ServerInfo{
 		ID:    s.ID,
+		Name:  s.Name,
 		State: string(s.Status),
 	}
 	if s.PublicNet.IPv4.IP != nil {

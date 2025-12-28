@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -21,18 +23,23 @@ import (
 )
 
 var (
-	cfg       *rest.Config
-	k8sClient client.Client
-	testEnv   *envtest.Environment
-	ctx       context.Context
-	cancel    context.CancelFunc
+	cfg        *rest.Config
+	k8sClient  client.Client
+	testEnv    *envtest.Environment
+	fakeHCloud *hcloudclient.FakeClient
+	ctx        context.Context
+	cancel     context.CancelFunc
 )
+
+func TestController(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "HCloudServer Controller Suite")
+}
 
 func TestMain(m *testing.M) {
 	logf.SetLogger(zap.New(zap.WriteTo(os.Stderr), zap.UseDevMode(true)))
 	ctx, cancel = context.WithCancel(context.Background())
 
-	// Initialize envtest
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "config", "crd", "bases")},
 		ErrorIfCRDPathMissing: true,
@@ -45,7 +52,6 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	// Register API types
 	if err := infrav1alpha1.AddToScheme(scheme.Scheme); err != nil {
 		fmt.Printf("failed to add scheme: %v\n", err)
 		os.Exit(1)
@@ -57,11 +63,10 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	// Set up the controller manager
 	k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
 		Scheme: scheme.Scheme,
 		Metrics: metricsserver.Options{
-			BindAddress: "0", // Disable metrics server to avoid port conflicts
+			BindAddress: "0",
 		},
 	})
 	if err != nil {
@@ -69,19 +74,15 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	// Setup our reconciler with a dummy Hetzner token if none is provided.
-	// For real e2e tests, HCLOUD_TOKEN should be set in the environment.
-	token := os.Getenv("HCLOUD_TOKEN")
-	if token == "" {
-		token = "dummy-token-for-envtest"
-	}
+	// All tests share the same fake client. Individual tests reset its state
+	// or inject errors via the exported fields on FakeClient.
+	fakeHCloud = hcloudclient.NewFakeClient()
 
-	err = (&HCloudServerReconciler{
+	if err = (&HCloudServerReconciler{
 		Client:       k8sManager.GetClient(),
 		Scheme:       k8sManager.GetScheme(),
-		HCloudClient: hcloudclient.NewClient(token),
-	}).SetupWithManager(k8sManager)
-	if err != nil {
+		HCloudClient: fakeHCloud,
+	}).SetupWithManager(k8sManager); err != nil {
 		fmt.Printf("failed to setup reconciler: %v\n", err)
 		os.Exit(1)
 	}
