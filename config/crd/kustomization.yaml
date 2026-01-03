@@ -3,3 +3,4 @@ kind: Kustomization
 
 resources:
 - bases/infra.hkc.io_hcloudservers.yaml
+- bases/infra.hkc.io_hcloudvolumes.yaml

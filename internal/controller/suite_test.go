@@ -83,7 +83,16 @@ func TestMain(m *testing.M) {
 		Scheme:       k8sManager.GetScheme(),
 		HCloudClient: fakeHCloud,
 	}).SetupWithManager(k8sManager); err != nil {
-		fmt.Printf("failed to setup reconciler: %v\n", err)
+		fmt.Printf("failed to setup server reconciler: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err = (&HCloudVolumeReconciler{
+		Client:       k8sManager.GetClient(),
+		Scheme:       k8sManager.GetScheme(),
+		HCloudClient: fakeHCloud,
+	}).SetupWithManager(k8sManager); err != nil {
+		fmt.Printf("failed to setup volume reconciler: %v\n", err)
 		os.Exit(1)
 	}
 
