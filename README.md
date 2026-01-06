@@ -15,6 +15,12 @@ This project draws heavy inspiration from:
 
 The goal is not to replace massive multi-cloud tools like Terraform, but rather to provide a focused, lightweight, and tightly integrated experience for users who are already heavily invested in the Kubernetes ecosystem and want to provision Hetzner resources (like Servers and Volumes) without leaving `kubectl`.
 
+### Platform Engineering & KRO Compatibility
+
+Because HKIC uses standard Kubernetes Custom Resources (CRDs), strict validation, and idiomatic `status` fields, it is designed from the ground up to act as a **foundational building block for Internal Developer Platforms (IDPs)**.
+
+You can combine HKIC with orchestrators like [Kube Resource Orchestrator (kro)](https://github.com/kubernetes-sigs/kro) or Crossplane Compositions. This allows Platform Engineers to define higher-level abstractions (e.g., `HetznerDatabaseNode`) that automatically stitch together an `HCloudServer` and an `HCloudVolume` under the hood, hiding infrastructure complexity from developers.
+
 ## How It Works
 
 1. **Declarative State:** You apply a custom resource (e.g., `HCloudServer` or `HCloudVolume`) to your cluster.

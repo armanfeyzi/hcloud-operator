@@ -19,7 +19,8 @@ The vision of the **Hetzner Kubernetes Infrastructure Controller (HKIC)** is to 
 - [ ] Cloud-init node bootstrap templates (e.g. k3s auto-join)
 - [ ] Firewalls support
 
-## Phase 4: GitOps & Advanced
+## Phase 4: GitOps & Platform Engineering
 - [ ] ArgoCD templates / patterns
 - [ ] Helm Chart packaging
 - [ ] Multi-cluster management support
+- [ ] Documentation for creating higher-level abstractions with [kro (Kube Resource Orchestrator)](https://github.com/kubernetes-sigs/kro) or Crossplane Compositions
