@@ -10,7 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	infrav1alpha1 "github.com/afeyzirealyticsio/hcloud-operator/api/v1alpha1"
+	infrav1alpha1 "github.com/armanfeyzi/hcloud-operator/api/v1alpha1"
 )
 
 func newVolume(name string, size int, serverRef *string) *infrav1alpha1.HCloudVolume {

@@ -14,8 +14,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	infrav1alpha1 "github.com/afeyzirealyticsio/hcloud-operator/api/v1alpha1"
-	hcloudclient "github.com/afeyzirealyticsio/hcloud-operator/internal/hcloud"
+	infrav1alpha1 "github.com/armanfeyzi/hcloud-operator/api/v1alpha1"
+	hcloudclient "github.com/armanfeyzi/hcloud-operator/internal/hcloud"
 )
 
 const (

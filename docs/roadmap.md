@@ -11,7 +11,7 @@ The vision of the **Hetzner Kubernetes Infrastructure Controller (HKIC)** is to 
 ## Phase 2: Compute Expansion
 - [ ] Support for server scale up / down
 - [ ] `HCloudVolume` CRD (Block Storage)
-- [ ] `HCloudLoadBalancer` CRD
+- [x] `HCloudLoadBalancer` CRD
 - [ ] Volume attachment to Servers
 
 ## Phase 3: Networking & Clustering

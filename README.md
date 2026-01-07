@@ -33,6 +33,7 @@ You can combine HKIC with orchestrators like [Kube Resource Orchestrator (kro)](
 
 - **Servers (`HCloudServer`):** Provision and manage Hetzner Virtual Machines.
 - **Volumes (`HCloudVolume`):** Provision block storage and automatically attach it to your servers using Kubernetes native references (`serverRef`).
+- **Load Balancers (`HCloudLoadBalancer`):** Expose selected servers through a public Hetzner Load Balancer using `serverSelector` label matching.
 - **Idempotent Operations:** The controller is designed to handle API interruptions safely without creating duplicate infrastructure.
 
 ## Quick Start
@@ -86,6 +87,22 @@ spec:
   format: ext4
   serverRef:
     name: database-node # Automatically attaches to the server above!
+```
+
+Expose selected servers via a load balancer:
+
+```yaml
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudLoadBalancer
+metadata:
+  name: public-web
+spec:
+  loadBalancerType: lb11
+  location: fsn1
+  algorithm: round_robin
+  serverSelector:
+    matchLabels:
+      app: web
 ```
 
 Apply it to your cluster:

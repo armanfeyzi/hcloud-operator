@@ -30,10 +30,10 @@ type ServerCreateOpts struct {
 
 // VolumeInfo is a minimal, SDK-agnostic view of a Hetzner Cloud volume.
 type VolumeInfo struct {
-	ID         int64
-	Name       string
-	State      string
-	ServerID   int64  // 0 if unattached
+	ID          int64
+	Name        string
+	State       string
+	ServerID    int64 // 0 if unattached
 	LinuxDevice string
 }
 
@@ -46,6 +46,25 @@ type VolumeCreateOpts struct {
 	Format    string // optional filesystem format
 	Automount bool   // if true, Hetzner attempts to mount it automatically
 	Labels    map[string]string
+}
+
+// LoadBalancerInfo is a minimal, SDK-agnostic view of a Hetzner Cloud load balancer.
+type LoadBalancerInfo struct {
+	ID         int64
+	Name       string
+	PublicIPv4 string
+	PublicIPv6 string
+	Targets    []int64
+}
+
+// LoadBalancerCreateOpts holds the parameters for creating a Hetzner Cloud load balancer.
+type LoadBalancerCreateOpts struct {
+	Name             string
+	LoadBalancerType string
+	Location         string
+	NetworkZone      string
+	Algorithm        string
+	Labels           map[string]string
 }
 
 // Interface defines the Hetzner Cloud operations required by the controller.
@@ -63,6 +82,13 @@ type Interface interface {
 	DeleteVolume(ctx context.Context, id int64) error
 	AttachVolume(ctx context.Context, volumeID int64, serverID int64) error
 	DetachVolume(ctx context.Context, volumeID int64) error
+
+	GetLoadBalancer(ctx context.Context, id int64) (*LoadBalancerInfo, error)
+	GetLoadBalancerByName(ctx context.Context, name string) (*LoadBalancerInfo, error)
+	CreateLoadBalancer(ctx context.Context, opts LoadBalancerCreateOpts) (*LoadBalancerInfo, error)
+	DeleteLoadBalancer(ctx context.Context, id int64) error
+	AttachServerToLoadBalancer(ctx context.Context, loadBalancerID int64, serverID int64) error
+	DetachServerFromLoadBalancer(ctx context.Context, loadBalancerID int64, serverID int64) error
 }
 
 // Client wraps the Hetzner Cloud API client with idempotent helpers.
@@ -327,6 +353,156 @@ func toVolumeInfo(v *hcloudgo.Volume) *VolumeInfo {
 	}
 	if v.Server != nil {
 		info.ServerID = v.Server.ID
+	}
+	return info
+}
+
+// GetLoadBalancer fetches a load balancer by its Hetzner Cloud ID.
+func (c *Client) GetLoadBalancer(ctx context.Context, id int64) (*LoadBalancerInfo, error) {
+	lb, _, err := c.hc.LoadBalancer.GetByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("hcloud: GetLoadBalancer(%d): %w", id, err)
+	}
+	if lb == nil {
+		return nil, nil
+	}
+	return toLoadBalancerInfo(lb), nil
+}
+
+// GetLoadBalancerByName fetches a load balancer by its name.
+func (c *Client) GetLoadBalancerByName(ctx context.Context, name string) (*LoadBalancerInfo, error) {
+	lb, _, err := c.hc.LoadBalancer.GetByName(ctx, name)
+	if err != nil {
+		return nil, fmt.Errorf("hcloud: GetLoadBalancerByName(%q): %w", name, err)
+	}
+	if lb == nil {
+		return nil, nil
+	}
+	return toLoadBalancerInfo(lb), nil
+}
+
+// CreateLoadBalancer provisions a new Hetzner Cloud load balancer.
+func (c *Client) CreateLoadBalancer(ctx context.Context, opts LoadBalancerCreateOpts) (*LoadBalancerInfo, error) {
+	lbType, _, err := c.hc.LoadBalancerType.GetByName(ctx, opts.LoadBalancerType)
+	if err != nil {
+		return nil, fmt.Errorf("hcloud: resolve load balancer type %q: %w", opts.LoadBalancerType, err)
+	}
+	if lbType == nil {
+		return nil, fmt.Errorf("hcloud: load balancer type %q not found", opts.LoadBalancerType)
+	}
+
+	createOpts := hcloudgo.LoadBalancerCreateOpts{
+		Name:             opts.Name,
+		LoadBalancerType: lbType,
+		Labels:           opts.Labels,
+	}
+
+	if opts.Algorithm != "" {
+		createOpts.Algorithm = &hcloudgo.LoadBalancerAlgorithm{Type: hcloudgo.LoadBalancerAlgorithmType(opts.Algorithm)}
+	}
+	if opts.Location != "" {
+		location, _, err := c.hc.Location.GetByName(ctx, opts.Location)
+		if err != nil {
+			return nil, fmt.Errorf("hcloud: resolve location %q: %w", opts.Location, err)
+		}
+		if location == nil {
+			return nil, fmt.Errorf("hcloud: location %q not found", opts.Location)
+		}
+		createOpts.Location = location
+	}
+	if opts.NetworkZone != "" {
+		createOpts.NetworkZone = hcloudgo.NetworkZone(opts.NetworkZone)
+	}
+
+	result, _, err := c.hc.LoadBalancer.Create(ctx, createOpts)
+	if err != nil {
+		return nil, fmt.Errorf("hcloud: CreateLoadBalancer %q: %w", opts.Name, err)
+	}
+	return toLoadBalancerInfo(result.LoadBalancer), nil
+}
+
+// DeleteLoadBalancer destroys a Hetzner Cloud load balancer by ID.
+func (c *Client) DeleteLoadBalancer(ctx context.Context, id int64) error {
+	lb, _, err := c.hc.LoadBalancer.GetByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("hcloud: GetLoadBalancer(%d): %w", id, err)
+	}
+	if lb == nil {
+		return nil
+	}
+	if _, err := c.hc.LoadBalancer.Delete(ctx, lb); err != nil {
+		return fmt.Errorf("hcloud: DeleteLoadBalancer(%d): %w", id, err)
+	}
+	return nil
+}
+
+// AttachServerToLoadBalancer attaches an existing server target to a load balancer.
+func (c *Client) AttachServerToLoadBalancer(ctx context.Context, loadBalancerID int64, serverID int64) error {
+	lb, _, err := c.hc.LoadBalancer.GetByID(ctx, loadBalancerID)
+	if err != nil {
+		return fmt.Errorf("hcloud: fetch load balancer %d: %w", loadBalancerID, err)
+	}
+	if lb == nil {
+		return fmt.Errorf("hcloud: load balancer %d not found", loadBalancerID)
+	}
+
+	server, _, err := c.hc.Server.GetByID(ctx, serverID)
+	if err != nil {
+		return fmt.Errorf("hcloud: fetch server %d: %w", serverID, err)
+	}
+	if server == nil {
+		return fmt.Errorf("hcloud: server %d not found", serverID)
+	}
+
+	action, _, err := c.hc.LoadBalancer.AddServerTarget(ctx, lb, hcloudgo.LoadBalancerAddServerTargetOpts{Server: server})
+	if err != nil {
+		return fmt.Errorf("hcloud: AttachServerToLoadBalancer(%d, %d): %w", loadBalancerID, serverID, err)
+	}
+	_ = action
+	return nil
+}
+
+// DetachServerFromLoadBalancer detaches a server target from a load balancer.
+func (c *Client) DetachServerFromLoadBalancer(ctx context.Context, loadBalancerID int64, serverID int64) error {
+	lb, _, err := c.hc.LoadBalancer.GetByID(ctx, loadBalancerID)
+	if err != nil {
+		return fmt.Errorf("hcloud: fetch load balancer %d: %w", loadBalancerID, err)
+	}
+	if lb == nil {
+		return fmt.Errorf("hcloud: load balancer %d not found", loadBalancerID)
+	}
+
+	server, _, err := c.hc.Server.GetByID(ctx, serverID)
+	if err != nil {
+		return fmt.Errorf("hcloud: fetch server %d: %w", serverID, err)
+	}
+	if server == nil {
+		return nil
+	}
+
+	action, _, err := c.hc.LoadBalancer.RemoveServerTarget(ctx, lb, server)
+	if err != nil {
+		return fmt.Errorf("hcloud: DetachServerFromLoadBalancer(%d, %d): %w", loadBalancerID, serverID, err)
+	}
+	_ = action
+	return nil
+}
+
+func toLoadBalancerInfo(lb *hcloudgo.LoadBalancer) *LoadBalancerInfo {
+	info := &LoadBalancerInfo{
+		ID:   lb.ID,
+		Name: lb.Name,
+	}
+	if lb.PublicNet.IPv4.IP != nil {
+		info.PublicIPv4 = lb.PublicNet.IPv4.IP.String()
+	}
+	if lb.PublicNet.IPv6.IP != nil {
+		info.PublicIPv6 = lb.PublicNet.IPv6.IP.String()
+	}
+	for _, target := range lb.Targets {
+		if target.Type == hcloudgo.LoadBalancerTargetTypeServer && target.Server != nil && target.Server.Server != nil {
+			info.Targets = append(info.Targets, target.Server.Server.ID)
+		}
 	}
 	return info
 }

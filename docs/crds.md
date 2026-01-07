@@ -39,3 +39,52 @@ spec:
   image: ubuntu-22.04
   location: fsn1
 ```
+
+## `HCloudVolume`
+Group: `infra.hkc.io/v1alpha1`
+Scope: `Cluster`
+
+Manages a single Hetzner Cloud volume and optional attachment to a server.
+
+### Spec
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `size` | int | Yes | Size in GB (10-10240) |
+| `location` | string | Conditionally | Required when `serverRef` is not set |
+| `serverRef.name` | string | No | Name of target `HCloudServer` to attach |
+| `format` | string | No | Filesystem type to create |
+| `labels` | map[string]string | No | Cloud resource labels |
+
+## `HCloudLoadBalancer`
+Group: `infra.hkc.io/v1alpha1`
+Scope: `Cluster`
+
+Manages a Hetzner Cloud Load Balancer and keeps its targets in sync with matching `HCloudServer` resources.
+
+### Spec
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `loadBalancerType` | string | Yes | Hetzner LB type (e.g. `lb11`) |
+| `location` | string | No | Datacenter location (mutually exclusive with `networkZone`) |
+| `networkZone` | string | No | Network zone (mutually exclusive with `location`) |
+| `algorithm` | string | No | Balancing algorithm (`round_robin` or `least_connections`) |
+| `serverSelector` | LabelSelector | No | Selects `HCloudServer` objects by Kubernetes labels |
+| `labels` | map[string]string | No | Cloud resource labels |
+
+### Example
+
+```yaml
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudLoadBalancer
+metadata:
+  name: public-web
+spec:
+  loadBalancerType: lb11
+  location: fsn1
+  algorithm: round_robin
+  serverSelector:
+    matchLabels:
+      app: web
+```

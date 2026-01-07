@@ -1,0 +1,125 @@
+package controller
+
+import (
+	"fmt"
+	"time"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+
+	infrav1alpha1 "github.com/armanfeyzi/hcloud-operator/api/v1alpha1"
+)
+
+func newLoadBalancer(name string, selector map[string]string) *infrav1alpha1.HCloudLoadBalancer {
+	lb := &infrav1alpha1.HCloudLoadBalancer{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+		Spec: infrav1alpha1.HCloudLoadBalancerSpec{
+			LoadBalancerType: "lb11",
+			Location:         "fsn1",
+			Algorithm:        "round_robin",
+		},
+	}
+	if selector != nil {
+		lb.Spec.ServerSelector = &metav1.LabelSelector{MatchLabels: selector}
+	}
+	return lb
+}
+
+var _ = Describe("HCloudLoadBalancerReconciler", func() {
+	var lbName string
+	var backendServerName string
+
+	BeforeEach(func() {
+		lbName = fmt.Sprintf("test-lb-%d", time.Now().UnixNano())
+		backendServerName = fmt.Sprintf("test-lb-server-%d", time.Now().UnixNano())
+		fakeHCloud.CreateErr = nil
+		fakeHCloud.GetErr = nil
+		fakeHCloud.DeleteErr = nil
+	})
+
+	AfterEach(func() {
+		lb := &infrav1alpha1.HCloudLoadBalancer{}
+		if err := k8sClient.Get(ctx, types.NamespacedName{Name: lbName}, lb); err == nil {
+			_ = k8sClient.Delete(ctx, lb)
+		}
+		server := &infrav1alpha1.HCloudServer{}
+		if err := k8sClient.Get(ctx, types.NamespacedName{Name: backendServerName}, server); err == nil {
+			_ = k8sClient.Delete(ctx, server)
+		}
+	})
+
+	It("creates a load balancer and syncs target servers from serverSelector", func() {
+		server := &infrav1alpha1.HCloudServer{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   backendServerName,
+				Labels: map[string]string{"app": "web"},
+			},
+			Spec: infrav1alpha1.HCloudServerSpec{
+				ServerType: "cx21",
+				Image:      "ubuntu-22.04",
+				Location:   "fsn1",
+			},
+		}
+		Expect(k8sClient.Create(ctx, server)).To(Succeed())
+
+		Eventually(func() int64 {
+			obj := &infrav1alpha1.HCloudServer{}
+			_ = k8sClient.Get(ctx, types.NamespacedName{Name: backendServerName}, obj)
+			return obj.Status.ServerID
+		}, waitTimeout, pollInterval).Should(BeNumerically(">", 0))
+
+		Expect(k8sClient.Create(ctx, newLoadBalancer(lbName, map[string]string{"app": "web"}))).To(Succeed())
+
+		Eventually(func() int {
+			obj := &infrav1alpha1.HCloudLoadBalancer{}
+			_ = k8sClient.Get(ctx, types.NamespacedName{Name: lbName}, obj)
+			return len(obj.Status.AttachedServerIDs)
+		}, waitTimeout, pollInterval).Should(Equal(1))
+
+		obj := &infrav1alpha1.HCloudLoadBalancer{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: lbName}, obj)).To(Succeed())
+		Expect(obj.Status.LoadBalancerID).To(BeNumerically(">", 0))
+		Expect(obj.Status.PublicIPv4).NotTo(BeEmpty())
+		Expect(fakeHCloud.LenLoadBalancers()).To(Equal(1))
+	})
+
+	It("detaches server targets when labels no longer match selector", func() {
+		server := &infrav1alpha1.HCloudServer{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   backendServerName,
+				Labels: map[string]string{"app": "api"},
+			},
+			Spec: infrav1alpha1.HCloudServerSpec{
+				ServerType: "cx21",
+				Image:      "ubuntu-22.04",
+				Location:   "fsn1",
+			},
+		}
+		Expect(k8sClient.Create(ctx, server)).To(Succeed())
+		Eventually(func() int64 {
+			obj := &infrav1alpha1.HCloudServer{}
+			_ = k8sClient.Get(ctx, types.NamespacedName{Name: backendServerName}, obj)
+			return obj.Status.ServerID
+		}, waitTimeout, pollInterval).Should(BeNumerically(">", 0))
+
+		Expect(k8sClient.Create(ctx, newLoadBalancer(lbName, map[string]string{"app": "api"}))).To(Succeed())
+		Eventually(func() int {
+			obj := &infrav1alpha1.HCloudLoadBalancer{}
+			_ = k8sClient.Get(ctx, types.NamespacedName{Name: lbName}, obj)
+			return len(obj.Status.AttachedServerIDs)
+		}, waitTimeout, pollInterval).Should(Equal(1))
+
+		obj := &infrav1alpha1.HCloudServer{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: backendServerName}, obj)).To(Succeed())
+		obj.Labels["app"] = "worker"
+		Expect(k8sClient.Update(ctx, obj)).To(Succeed())
+
+		Eventually(func() int {
+			lb := &infrav1alpha1.HCloudLoadBalancer{}
+			_ = k8sClient.Get(ctx, types.NamespacedName{Name: lbName}, lb)
+			return len(lb.Status.AttachedServerIDs)
+		}, waitTimeout, pollInterval).Should(Equal(0))
+	})
+})

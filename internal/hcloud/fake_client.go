@@ -9,10 +9,11 @@ import (
 // FakeClient is an in-memory implementation of Interface for use in tests.
 // All operations are goroutine-safe and stored in a simple map keyed by server ID.
 type FakeClient struct {
-	mu      sync.Mutex
-	servers map[int64]*ServerInfo
-	volumes map[int64]*VolumeInfo
-	nextID  int64
+	mu            sync.Mutex
+	servers       map[int64]*ServerInfo
+	volumes       map[int64]*VolumeInfo
+	loadBalancers map[int64]*LoadBalancerInfo
+	nextID        int64
 
 	// CreateErr, if non-nil, is returned by every CreateServer call.
 	CreateErr error
@@ -25,9 +26,10 @@ type FakeClient struct {
 // NewFakeClient returns an empty FakeClient ready for use in tests.
 func NewFakeClient() *FakeClient {
 	return &FakeClient{
-		servers: make(map[int64]*ServerInfo),
-		volumes: make(map[int64]*VolumeInfo),
-		nextID:  1,
+		servers:       make(map[int64]*ServerInfo),
+		volumes:       make(map[int64]*VolumeInfo),
+		loadBalancers: make(map[int64]*LoadBalancerInfo),
+		nextID:        1,
 	}
 }
 
@@ -117,6 +119,13 @@ func (f *FakeClient) LenVolumes() int {
 	return len(f.volumes)
 }
 
+// LenLoadBalancers returns the number of load balancers currently tracked by the fake.
+func (f *FakeClient) LenLoadBalancers() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.loadBalancers)
+}
+
 func (f *FakeClient) GetVolume(ctx context.Context, id int64) (*VolumeInfo, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -171,7 +180,7 @@ func (f *FakeClient) CreateVolume(ctx context.Context, opts VolumeCreateOpts) (*
 		State:       "available",
 		LinuxDevice: fmt.Sprintf("/dev/disk/by-id/scsi-0HC_Volume_%d", id),
 	}
-	
+
 	if opts.ServerID > 0 {
 		info.ServerID = opts.ServerID
 	}
@@ -221,3 +230,115 @@ func (f *FakeClient) DetachVolume(ctx context.Context, volumeID int64) error {
 	return nil
 }
 
+func (f *FakeClient) GetLoadBalancer(ctx context.Context, id int64) (*LoadBalancerInfo, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.GetErr != nil {
+		return nil, f.GetErr
+	}
+	lb, ok := f.loadBalancers[id]
+	if !ok {
+		return nil, nil
+	}
+	cp := *lb
+	cp.Targets = append([]int64{}, lb.Targets...)
+	return &cp, nil
+}
+
+func (f *FakeClient) GetLoadBalancerByName(ctx context.Context, name string) (*LoadBalancerInfo, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.GetErr != nil {
+		return nil, f.GetErr
+	}
+	for _, lb := range f.loadBalancers {
+		if lb.Name == name {
+			cp := *lb
+			cp.Targets = append([]int64{}, lb.Targets...)
+			return &cp, nil
+		}
+	}
+	return nil, nil
+}
+
+func (f *FakeClient) CreateLoadBalancer(ctx context.Context, opts LoadBalancerCreateOpts) (*LoadBalancerInfo, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.CreateErr != nil {
+		return nil, f.CreateErr
+	}
+
+	for _, lb := range f.loadBalancers {
+		if lb.Name == opts.Name {
+			return nil, fmt.Errorf("fake: load balancer with name %q already exists", opts.Name)
+		}
+	}
+
+	id := f.nextID
+	f.nextID++
+
+	info := &LoadBalancerInfo{
+		ID:         id,
+		Name:       opts.Name,
+		PublicIPv4: fmt.Sprintf("5.6.7.%d", id),
+		PublicIPv6: fmt.Sprintf("2001:db8:1::%d", id),
+		Targets:    []int64{},
+	}
+
+	f.loadBalancers[id] = info
+	cp := *info
+	cp.Targets = append([]int64{}, info.Targets...)
+	return &cp, nil
+}
+
+func (f *FakeClient) DeleteLoadBalancer(ctx context.Context, id int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.DeleteErr != nil {
+		return f.DeleteErr
+	}
+	delete(f.loadBalancers, id)
+	return nil
+}
+
+func (f *FakeClient) AttachServerToLoadBalancer(ctx context.Context, loadBalancerID int64, serverID int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	lb, ok := f.loadBalancers[loadBalancerID]
+	if !ok {
+		return fmt.Errorf("fake: load balancer %d not found", loadBalancerID)
+	}
+	if _, ok := f.servers[serverID]; !ok {
+		return fmt.Errorf("fake: server %d not found", serverID)
+	}
+	for _, existing := range lb.Targets {
+		if existing == serverID {
+			return nil
+		}
+	}
+	lb.Targets = append(lb.Targets, serverID)
+	return nil
+}
+
+func (f *FakeClient) DetachServerFromLoadBalancer(ctx context.Context, loadBalancerID int64, serverID int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	lb, ok := f.loadBalancers[loadBalancerID]
+	if !ok {
+		return fmt.Errorf("fake: load balancer %d not found", loadBalancerID)
+	}
+	filtered := lb.Targets[:0]
+	for _, id := range lb.Targets {
+		if id != serverID {
+			filtered = append(filtered, id)
+		}
+	}
+	lb.Targets = filtered
+	return nil
+}

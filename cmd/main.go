@@ -15,9 +15,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	infrav1alpha1 "github.com/afeyzirealyticsio/hcloud-operator/api/v1alpha1"
-	"github.com/afeyzirealyticsio/hcloud-operator/internal/controller"
-	hcloudclient "github.com/afeyzirealyticsio/hcloud-operator/internal/hcloud"
+	infrav1alpha1 "github.com/armanfeyzi/hcloud-operator/api/v1alpha1"
+	"github.com/armanfeyzi/hcloud-operator/internal/controller"
+	hcloudclient "github.com/armanfeyzi/hcloud-operator/internal/hcloud"
 )
 
 var (
@@ -75,6 +75,24 @@ func main() {
 		HCloudClient: hcloudclient.NewClient(hcloudToken),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "HCloudServer")
+		os.Exit(1)
+	}
+
+	if err = (&controller.HCloudVolumeReconciler{
+		Client:       mgr.GetClient(),
+		Scheme:       mgr.GetScheme(),
+		HCloudClient: hcloudclient.NewClient(hcloudToken),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "HCloudVolume")
+		os.Exit(1)
+	}
+
+	if err = (&controller.HCloudLoadBalancerReconciler{
+		Client:       mgr.GetClient(),
+		Scheme:       mgr.GetScheme(),
+		HCloudClient: hcloudclient.NewClient(hcloudToken),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "HCloudLoadBalancer")
 		os.Exit(1)
 	}
 

@@ -6,6 +6,32 @@ rules:
 - apiGroups:
   - infra.hkc.io
   resources:
+  - hcloudloadbalancers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudloadbalancers/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudloadbalancers/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
   - hcloudservers
   verbs:
   - create
@@ -25,6 +51,32 @@ rules:
   - infra.hkc.io
   resources:
   - hcloudservers/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudvolumes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudvolumes/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudvolumes/status
   verbs:
   - get
   - patch

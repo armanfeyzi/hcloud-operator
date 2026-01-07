@@ -10,8 +10,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	infrav1alpha1 "github.com/afeyzirealyticsio/hcloud-operator/api/v1alpha1"
-	hcloudclient "github.com/afeyzirealyticsio/hcloud-operator/internal/hcloud"
+	infrav1alpha1 "github.com/armanfeyzi/hcloud-operator/api/v1alpha1"
+	hcloudclient "github.com/armanfeyzi/hcloud-operator/internal/hcloud"
 )
 
 // poll / timeout helpers used throughout the tests.

@@ -18,8 +18,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	infrav1alpha1 "github.com/afeyzirealyticsio/hcloud-operator/api/v1alpha1"
-	hcloudclient "github.com/afeyzirealyticsio/hcloud-operator/internal/hcloud"
+	infrav1alpha1 "github.com/armanfeyzi/hcloud-operator/api/v1alpha1"
+	hcloudclient "github.com/armanfeyzi/hcloud-operator/internal/hcloud"
 )
 
 var (
@@ -93,6 +93,15 @@ func TestMain(m *testing.M) {
 		HCloudClient: fakeHCloud,
 	}).SetupWithManager(k8sManager); err != nil {
 		fmt.Printf("failed to setup volume reconciler: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err = (&HCloudLoadBalancerReconciler{
+		Client:       k8sManager.GetClient(),
+		Scheme:       k8sManager.GetScheme(),
+		HCloudClient: fakeHCloud,
+	}).SetupWithManager(k8sManager); err != nil {
+		fmt.Printf("failed to setup load balancer reconciler: %v\n", err)
 		os.Exit(1)
 	}
 

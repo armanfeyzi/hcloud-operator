@@ -1,0 +1,14 @@
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudLoadBalancer
+metadata:
+  name: public-web
+spec:
+  loadBalancerType: lb11
+  location: fsn1
+  algorithm: round_robin
+  serverSelector:
+    matchLabels:
+      app: web
+  labels:
+    env: dev
+    managed-by: hcloud-operator

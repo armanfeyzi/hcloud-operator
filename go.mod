@@ -1,4 +1,4 @@
-module github.com/afeyzirealyticsio/hcloud-operator
+module github.com/armanfeyzi/hcloud-operator
 
 go 1.25.0
 

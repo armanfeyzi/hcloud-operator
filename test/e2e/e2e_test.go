@@ -18,9 +18,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	infrav1alpha1 "github.com/afeyzirealyticsio/hcloud-operator/api/v1alpha1"
-	"github.com/afeyzirealyticsio/hcloud-operator/internal/controller"
-	hcloudclient "github.com/afeyzirealyticsio/hcloud-operator/internal/hcloud"
+	infrav1alpha1 "github.com/armanfeyzi/hcloud-operator/api/v1alpha1"
+	"github.com/armanfeyzi/hcloud-operator/internal/controller"
+	hcloudclient "github.com/armanfeyzi/hcloud-operator/internal/hcloud"
 )
 
 func TestHCloudServerE2E(t *testing.T) {
