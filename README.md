@@ -42,20 +42,45 @@ You can combine HKIC with orchestrators like [Kube Resource Orchestrator (kro)](
 - A running Kubernetes cluster (or `kind`/`minikube` for local testing)
 - A Hetzner Cloud API Token
 
-### 2. Production Installation (GitOps/kubectl)
-To install the operator into a cluster, create a namespace and store your Hetzner token in a secret. Then, apply the release manifest:
+### 2. Install CRDs (required for every cluster)
+
+Apply **all** CRD manifests whenever you upgrade the operator or use resources such as volumes and load balancers—not only `HCloudServer`:
+
+```bash
+# From a checkout of this repository (recommended)
+make install
+# Equivalent:
+kubectl apply -f config/crd/bases/
+```
+
+If you skip this step, `kubectl apply` may create `HCloudServer` objects but fail on `HCloudVolume` / `HCloudLoadBalancer` with “resource mapping not found”.
+
+### 3. Production Installation (operator in-cluster)
+
+Create the operator namespace and store your Hetzner token:
 
 ```bash
 kubectl create namespace hcloud-operator-system
 kubectl create secret generic hcloud-operator-secret \
   -n hcloud-operator-system \
   --from-literal=HCLOUD_TOKEN=your-api-token
-
-# Replace v0.1.1 with the latest release version
-kubectl apply -f https://github.com/armanfeyzi/hcloud-operator/releases/download/v0.1.1/install.yaml
 ```
 
-### 3. Local Development Install
+Then install the bundled manifests from your checkout (builds the same layout as the release workflow):
+
+```bash
+kubectl apply -k config/default/
+```
+
+When you publish a GitHub release, the workflow attaches `install.yaml`. You can then use:
+
+```bash
+kubectl apply -f https://github.com/armanfeyzi/hcloud-operator/releases/latest/download/install.yaml
+```
+
+If that URL returns 404, no release exists yet—use `kubectl apply -k config/default/` from a clone instead.
+
+### 4. Local Development Install
 If you want to run the operator locally on your machine against your cluster:
 
 ```bash
@@ -64,7 +89,7 @@ export HCLOUD_TOKEN="your-api-token"
 make run
 ```
 
-### 4. Create Infrastructure
+### 5. Create Infrastructure
 
 Define a server and an attached volume:
 
@@ -110,9 +135,11 @@ Apply it to your cluster:
 kubectl apply -f infra.yaml
 ```
 
-Check the status to see the assigned IP addresses and mount paths:
+A ready-to-apply version of this pattern (server + volume + load balancer) lives at `config/samples/hcloud_stack_v1alpha1.yaml`.
+
+Check the status to see the assigned IP addresses, load balancer front-end, and mount paths:
 ```bash
-kubectl get hcs,hcv
+kubectl get hcs,hcv,hclb
 ```
 
 ## Documentation

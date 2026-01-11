@@ -24,15 +24,17 @@
 To run the operator outside the cluster (as a local process) against your current `kubeconfig` context:
 
 ```bash
-make install # Installs the CRDs into the cluster
+make install # Installs every CRD in config/crd/bases/ (servers, volumes, load balancers)
 make run     # Runs the operator
 ```
 
-In a separate terminal, try applying a CRD:
+If `kubectl apply` reports **no matches for kind "HCloudVolume"** or **"HCloudLoadBalancer"**, the cluster is missing newer CRDs. Run `make install` again (or `kubectl apply -f config/crd/bases/`), then re-apply your manifests.
+
+In a separate terminal, try applying the demo stack (server, attached volume, load balancer):
 
 ```bash
-kubectl apply -f config/samples/hcloudserver_v1alpha1.yaml
-kubectl get hcloudservers
+kubectl apply -f config/samples/hcloud_stack_v1alpha1.yaml
+kubectl get hcs,hcv,hclb
 ```
 
 ## Running Tests

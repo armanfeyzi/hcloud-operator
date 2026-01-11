@@ -1,0 +1,58 @@
+# Demo stack: one Hetzner Cloud server, a block volume attached to it, and a load
+# balancer that selects that server by Kubernetes labels (serverSelector).
+#
+# Prerequisites — install ALL CRDs first (otherwise HCloudVolume / HCloudLoadBalancer fail):
+#   make install
+#   # or: kubectl apply -f config/crd/bases/
+#
+# Then apply this file (with the operator running, or after in-cluster install):
+#   kubectl apply -f config/samples/hcloud_stack_v1alpha1.yaml
+#
+# The load balancer gets a public IPv4 in status (check: kubectl get hclb -o wide).
+# Hetzner Load Balancers require at least one service (listen port → target port).
+# This operator provisions the LB and targets; add TCP/HTTP services (ports) for
+# your app via the Hetzner Cloud console/API if you need forwarding rules today.
+---
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudServer
+metadata:
+  name: demo-web
+  labels:
+    app.kubernetes.io/name: demo-web
+    # Matched by HCloudLoadBalancer.spec.serverSelector below.
+    demo.hkc.io/lb: web
+spec:
+  serverType: cx23
+  image: ubuntu-22.04
+  location: fsn1
+  labels:
+    env: demo
+    managed-by: hcloud-operator
+---
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudVolume
+metadata:
+  name: demo-web-data
+spec:
+  size: 20
+  format: ext4
+  serverRef:
+    name: demo-web
+  labels:
+    env: demo
+    managed-by: hcloud-operator
+---
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudLoadBalancer
+metadata:
+  name: demo-web-public
+spec:
+  loadBalancerType: lb11
+  location: fsn1
+  algorithm: round_robin
+  serverSelector:
+    matchLabels:
+      demo.hkc.io/lb: web
+  labels:
+    env: demo
+    managed-by: hcloud-operator

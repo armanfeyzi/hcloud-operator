@@ -28,5 +28,8 @@ jobs:
       - name: Run go vet
         run: go vet ./...
 
+      - name: Verify kustomize build (install manifest)
+        run: kubectl kustomize config/default/ >/dev/null
+
       - name: Run tests
         run: make test
