@@ -142,7 +142,7 @@ func (r *HCloudVolumeReconciler) reconcileHCloudVolume(ctx context.Context, obj 
 			Automount: true,
 			Labels:    obj.Spec.Labels,
 		}
-		
+
 		created, err := r.HCloudClient.CreateVolume(ctx, opts)
 		if err != nil {
 			return fmt.Errorf("create volume: %w", err)
@@ -176,7 +176,7 @@ func (r *HCloudVolumeReconciler) reconcileHCloudVolume(ctx context.Context, obj 
 		obj.Status.LinuxDevice = existing.LinuxDevice
 	}
 	r.setCondition(obj, conditionTypeReady, metav1.ConditionTrue, "VolumeReady", "Volume is provisioned and attached")
-	
+
 	return r.Status().Update(ctx, obj)
 }
 

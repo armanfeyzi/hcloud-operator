@@ -73,14 +73,14 @@ var _ = Describe("HCloudVolumeReconciler", func() {
 
 		It("creates and attaches a volume when ServerRef points to a ready server", func() {
 			serverName := fmt.Sprintf("test-server-for-vol-%d", time.Now().UnixNano())
-			
+
 			// Setup Server
 			srv := &infrav1alpha1.HCloudServer{
 				ObjectMeta: metav1.ObjectMeta{Name: serverName, Namespace: "default"},
-				Spec: infrav1alpha1.HCloudServerSpec{ServerType: "cx21", Image: "ubuntu-22.04", Location: "fsn1"},
+				Spec:       infrav1alpha1.HCloudServerSpec{ServerType: "cx21", Image: "ubuntu-22.04", Location: "fsn1"},
 			}
 			Expect(k8sClient.Create(ctx, srv)).To(Succeed())
-			
+
 			Eventually(func() int64 {
 				s := &infrav1alpha1.HCloudServer{}
 				k8sClient.Get(ctx, types.NamespacedName{Name: serverName, Namespace: "default"}, s)
