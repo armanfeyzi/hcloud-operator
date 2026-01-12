@@ -5,11 +5,11 @@ import (
 )
 
 // HCloudServerSpec defines the desired state of an HCloudServer.
-// +kubebuilder:validation:XValidation:rule="self.serverType == oldSelf.serverType",message="serverType is immutable after creation"
 // +kubebuilder:validation:XValidation:rule="self.image == oldSelf.image",message="image is immutable after creation"
 // +kubebuilder:validation:XValidation:rule="self.location == oldSelf.location",message="location is immutable after creation"
 type HCloudServerSpec struct {
 	// ServerType is the Hetzner Cloud server type (e.g. cx21, cx31, cpx41).
+	// May be changed after creation; the controller powers off the server, changes type via the API, then powers it on again.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	ServerType string `json:"serverType"`
@@ -48,6 +48,11 @@ type HCloudServerStatus struct {
 	// State is the current Hetzner server state (e.g. running, stopped, initializing).
 	// +optional
 	State string `json:"state,omitempty"`
+
+	// AppliedServerType is the server type the controller has fully converged to (API type matches spec and server was running).
+	// While spec.serverType differs from the value in Hetzner, or before this field is set after a type change, a resize may be in progress.
+	// +optional
+	AppliedServerType string `json:"appliedServerType,omitempty"`
 
 	// PublicIPv4 is the server's public IPv4 address.
 	// +optional

@@ -20,6 +20,8 @@ Hetzner Kubernetes Infrastructure Controller (HKIC) is a Kubernetes-native opera
 
 ## Reconciliation Loop (HCloudServer)
 
+The reconciler creates or adopts a server, keeps `status` in sync, and implements **server type changes** when `spec.serverType` differs from Hetzner: wait until safe (`initializing` / `stopping` / `migrating` clear), **power off**, **`change_type`**, then **power on**. `status.appliedServerType` records the last fully converged type (spec matches API and state was `running`).
+
 ```mermaid
 graph TD
     A[CRD Changed/Created] --> B{Deletion Timestamp set?}
@@ -32,7 +34,8 @@ graph TD
     H --> I{Server Exists?}
     I -- No --> J[Create Server via API]
     J --> K[Update Status with Server ID]
-    I -- Yes --> L{Spec == Actual?}
-    L -- No --> M[Update Server]
-    L -- Yes --> N[Update Status IPs & State]
+    I -- Yes --> L{Observed type == spec.serverType?}
+    L -- No --> M[Resize: off / change_type / on per state]
+    M --> H
+    L -- Yes --> N[Sync status, IPs, appliedServerType when running]
 ```

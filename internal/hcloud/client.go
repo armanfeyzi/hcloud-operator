@@ -12,6 +12,7 @@ import (
 type ServerInfo struct {
 	ID         int64
 	Name       string
+	ServerType string
 	State      string
 	PublicIPv4 string
 	PublicIPv6 string
@@ -75,6 +76,9 @@ type Interface interface {
 	GetServerByName(ctx context.Context, name string) (*ServerInfo, error)
 	CreateServer(ctx context.Context, opts ServerCreateOpts) (*ServerInfo, error)
 	DeleteServer(ctx context.Context, id int64) error
+	PowerOffServer(ctx context.Context, id int64) error
+	PowerOnServer(ctx context.Context, id int64) error
+	ChangeServerType(ctx context.Context, id int64, serverType string, upgradeDisk bool) error
 
 	GetVolume(ctx context.Context, id int64) (*VolumeInfo, error)
 	GetVolumeByName(ctx context.Context, name string) (*VolumeInfo, error)
@@ -199,12 +203,79 @@ func (c *Client) DeleteServer(ctx context.Context, id int64) error {
 	return nil
 }
 
+// PowerOffServer requests a graceful power-off for the server. Idempotent if already off.
+func (c *Client) PowerOffServer(ctx context.Context, id int64) error {
+	s, _, err := c.hc.Server.GetByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("hcloud: GetServer(%d): %w", id, err)
+	}
+	if s == nil {
+		return fmt.Errorf("hcloud: server %d not found", id)
+	}
+	if s.Status == hcloudgo.ServerStatusOff || s.Status == hcloudgo.ServerStatusStopping {
+		return nil
+	}
+	if _, _, err := c.hc.Server.Poweroff(ctx, s); err != nil {
+		return fmt.Errorf("hcloud: PowerOffServer(%d): %w", id, err)
+	}
+	return nil
+}
+
+// PowerOnServer powers on a stopped server. Idempotent if already running.
+func (c *Client) PowerOnServer(ctx context.Context, id int64) error {
+	s, _, err := c.hc.Server.GetByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("hcloud: GetServer(%d): %w", id, err)
+	}
+	if s == nil {
+		return fmt.Errorf("hcloud: server %d not found", id)
+	}
+	if s.Status == hcloudgo.ServerStatusRunning || s.Status == hcloudgo.ServerStatusStarting {
+		return nil
+	}
+	if _, _, err := c.hc.Server.Poweron(ctx, s); err != nil {
+		return fmt.Errorf("hcloud: PowerOnServer(%d): %w", id, err)
+	}
+	return nil
+}
+
+// ChangeServerType changes a server's type. The server must be off. Idempotent if already the requested type.
+func (c *Client) ChangeServerType(ctx context.Context, id int64, serverTypeName string, upgradeDisk bool) error {
+	s, _, err := c.hc.Server.GetByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("hcloud: GetServer(%d): %w", id, err)
+	}
+	if s == nil {
+		return fmt.Errorf("hcloud: server %d not found", id)
+	}
+	if s.ServerType != nil && s.ServerType.Name == serverTypeName {
+		return nil
+	}
+	serverType, _, err := c.hc.ServerType.GetByName(ctx, serverTypeName)
+	if err != nil {
+		return fmt.Errorf("hcloud: resolve server type %q: %w", serverTypeName, err)
+	}
+	if serverType == nil {
+		return fmt.Errorf("hcloud: server type %q not found", serverTypeName)
+	}
+	if _, _, err := c.hc.Server.ChangeType(ctx, s, hcloudgo.ServerChangeTypeOpts{
+		ServerType:  serverType,
+		UpgradeDisk: upgradeDisk,
+	}); err != nil {
+		return fmt.Errorf("hcloud: ChangeServerType(%d, %q): %w", id, serverTypeName, err)
+	}
+	return nil
+}
+
 // toServerInfo converts a raw hcloud-go Server into our SDK-agnostic ServerInfo.
 func toServerInfo(s *hcloudgo.Server) *ServerInfo {
 	info := &ServerInfo{
 		ID:    s.ID,
 		Name:  s.Name,
 		State: string(s.Status),
+	}
+	if s.ServerType != nil {
+		info.ServerType = s.ServerType.Name
 	}
 	if s.PublicNet.IPv4.IP != nil {
 		info.PublicIPv4 = s.PublicNet.IPv4.IP.String()

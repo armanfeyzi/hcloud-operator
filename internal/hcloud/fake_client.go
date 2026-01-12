@@ -85,6 +85,7 @@ func (f *FakeClient) CreateServer(ctx context.Context, opts ServerCreateOpts) (*
 	info := &ServerInfo{
 		ID:         id,
 		Name:       opts.Name,
+		ServerType: opts.ServerType,
 		State:      "running",
 		PublicIPv4: fmt.Sprintf("1.2.3.%d", id),
 		PublicIPv6: fmt.Sprintf("2001:db8::%d/64", id),
@@ -102,6 +103,57 @@ func (f *FakeClient) DeleteServer(ctx context.Context, id int64) error {
 		return f.DeleteErr
 	}
 	delete(f.servers, id)
+	return nil
+}
+
+// PowerOffServer simulates an immediate transition to off.
+func (f *FakeClient) PowerOffServer(ctx context.Context, id int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	s, ok := f.servers[id]
+	if !ok {
+		return fmt.Errorf("fake: server %d not found", id)
+	}
+	if s.State == "off" || s.State == "stopping" {
+		return nil
+	}
+	s.State = "off"
+	return nil
+}
+
+// PowerOnServer simulates an immediate transition to running.
+func (f *FakeClient) PowerOnServer(ctx context.Context, id int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	s, ok := f.servers[id]
+	if !ok {
+		return fmt.Errorf("fake: server %d not found", id)
+	}
+	if s.State == "running" || s.State == "starting" {
+		return nil
+	}
+	s.State = "running"
+	return nil
+}
+
+// ChangeServerType updates the stored type when the fake server is off.
+func (f *FakeClient) ChangeServerType(ctx context.Context, id int64, serverType string, upgradeDisk bool) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	s, ok := f.servers[id]
+	if !ok {
+		return fmt.Errorf("fake: server %d not found", id)
+	}
+	if s.ServerType == serverType {
+		return nil
+	}
+	if s.State != "off" {
+		return fmt.Errorf("fake: server %d must be off to change type (state=%s)", id, s.State)
+	}
+	s.ServerType = serverType
 	return nil
 }
 

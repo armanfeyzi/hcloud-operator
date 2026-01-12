@@ -10,7 +10,7 @@ Manages a single Hetzner Cloud virtual server.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `serverType` | string | Yes | Hetzner server type (e.g. `cx21`, `cpx31`) |
+| `serverType` | string | Yes | Hetzner server type (e.g. `cx21`, `cpx31`). Can be updated after creation; the operator stops the VM, calls Hetzner `change_type`, then starts it again. |
 | `image` | string | Yes | OS image (e.g. `ubuntu-22.04`, `debian-11`) |
 | `location` | string | Yes | Datacenter location (`fsn1`, `nbg1`, `hel1`, `ash`, `hil`) |
 | `labels` | map[string]string | No | Cloud resource labels |
@@ -23,6 +23,7 @@ Manages a single Hetzner Cloud virtual server.
 |---|---|---|
 | `serverID` | int64 | The internal Hetzner Cloud ID of the created server |
 | `state` | string | Current state (e.g. `running`, `off`, `initializing`) |
+| `appliedServerType` | string | Last server type the controller fully reconciled (spec matches Hetzner and the server was `running`). Empty or stale while a type change is in progress. |
 | `publicIPv4` | string | The allocated public IPv4 address |
 | `publicIPv6` | string | The allocated public IPv6 address network |
 | `conditions` | []Condition | Status conditions (e.g. `Ready=True`) |

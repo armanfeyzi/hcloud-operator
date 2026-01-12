@@ -129,6 +129,37 @@ var _ = Describe("HCloudServerReconciler", func() {
 			Expect(fakeHCloud.Len()).To(Equal(1))
 		})
 
+		It("powers off, changes type, and powers on when spec.serverType is updated", func() {
+			By("creating a running server")
+			server := newServer(serverName)
+			Expect(k8sClient.Create(ctx, server)).To(Succeed())
+			Eventually(func() int64 {
+				obj, _ := fetchServer(serverName)()
+				return obj.Status.ServerID
+			}, waitTimeout, pollInterval).Should(BeNumerically(">", 0))
+
+			obj, err := fetchServer(serverName)()
+			Expect(err).NotTo(HaveOccurred())
+			sid := obj.Status.ServerID
+
+			By("patching server type in spec")
+			obj.Spec.ServerType = "cpx31"
+			Expect(k8sClient.Update(ctx, obj)).To(Succeed())
+
+			By("waiting for applied type and running state")
+			Eventually(func() []string {
+				o, err := fetchServer(serverName)()
+				if err != nil {
+					return nil
+				}
+				return []string{o.Status.AppliedServerType, o.Status.State}
+			}, waitTimeout, pollInterval).Should(Equal([]string{"cpx31", "running"}))
+
+			h, err := fakeHCloud.GetServer(ctx, sid)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(h.ServerType).To(Equal("cpx31"))
+		})
+
 		It("sets Ready=False and requeues when the Hetzner API returns an error", func() {
 			By("injecting a create error into the fake")
 			fakeHCloud.CreateErr = fmt.Errorf("quota exceeded")
