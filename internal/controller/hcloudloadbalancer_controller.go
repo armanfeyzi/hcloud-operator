@@ -9,9 +9,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrav1alpha1 "github.com/armanfeyzi/hcloud-operator/api/v1alpha1"
 	hcloudclient "github.com/armanfeyzi/hcloud-operator/internal/hcloud"
@@ -33,7 +36,25 @@ type HCloudLoadBalancerReconciler struct {
 func (r *HCloudLoadBalancerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrav1alpha1.HCloudLoadBalancer{}).
+		Watches(
+			&infrav1alpha1.HCloudServer{},
+			handler.EnqueueRequestsFromMapFunc(r.enqueueAllLoadBalancersForServerChange),
+		).
 		Complete(r)
+}
+
+// enqueueAllLoadBalancersForServerChange requeues every load balancer when any server changes
+// (labels, status ServerID, etc.) so serverSelector attachment stays in sync without waiting for LB periodic requeue.
+func (r *HCloudLoadBalancerReconciler) enqueueAllLoadBalancersForServerChange(ctx context.Context, _ client.Object) []reconcile.Request {
+	var list infrav1alpha1.HCloudLoadBalancerList
+	if err := r.List(ctx, &list); err != nil {
+		return nil
+	}
+	reqs := make([]reconcile.Request, 0, len(list.Items))
+	for i := range list.Items {
+		reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Name: list.Items[i].Name}})
+	}
+	return reqs
 }
 
 func (r *HCloudLoadBalancerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
