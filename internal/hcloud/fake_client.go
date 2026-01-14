@@ -33,6 +33,19 @@ func NewFakeClient() *FakeClient {
 	}
 }
 
+// Reset clears all stored resources and injected errors. Use between Ginkgo specs when sharing one FakeClient.
+func (f *FakeClient) Reset() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.servers = make(map[int64]*ServerInfo)
+	f.volumes = make(map[int64]*VolumeInfo)
+	f.loadBalancers = make(map[int64]*LoadBalancerInfo)
+	f.nextID = 1
+	f.CreateErr = nil
+	f.GetErr = nil
+	f.DeleteErr = nil
+}
+
 func (f *FakeClient) GetServer(ctx context.Context, id int64) (*ServerInfo, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

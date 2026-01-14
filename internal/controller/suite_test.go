@@ -6,9 +6,11 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -30,6 +32,62 @@ var (
 	ctx        context.Context
 	cancel     context.CancelFunc
 )
+
+// Specs share one envtest cluster and Hetzner fake with random order. Drain CRs then reset the fake so async
+// reconciles from a prior example cannot consume fake IDs or leave stale objects.
+var _ = BeforeEach(func() {
+	if k8sClient != nil {
+		drainClusterCRs(ctx, k8sClient)
+	}
+	if fakeHCloud != nil {
+		fakeHCloud.Reset()
+	}
+})
+
+func drainClusterCRs(ctx context.Context, c client.Client) {
+	var servers infrav1alpha1.HCloudServerList
+	if err := c.List(ctx, &servers); err == nil {
+		for i := range servers.Items {
+			_ = client.IgnoreNotFound(c.Delete(ctx, &servers.Items[i]))
+		}
+	}
+	var volumes infrav1alpha1.HCloudVolumeList
+	if err := c.List(ctx, &volumes); err == nil {
+		for i := range volumes.Items {
+			_ = client.IgnoreNotFound(c.Delete(ctx, &volumes.Items[i]))
+		}
+	}
+	var lbs infrav1alpha1.HCloudLoadBalancerList
+	if err := c.List(ctx, &lbs); err == nil {
+		for i := range lbs.Items {
+			_ = client.IgnoreNotFound(c.Delete(ctx, &lbs.Items[i]))
+		}
+	}
+	_ = wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 20*time.Second, true, func(ctx context.Context) (bool, error) {
+		var s infrav1alpha1.HCloudServerList
+		if err := c.List(ctx, &s); err != nil {
+			return false, nil
+		}
+		if len(s.Items) > 0 {
+			return false, nil
+		}
+		var v infrav1alpha1.HCloudVolumeList
+		if err := c.List(ctx, &v); err != nil {
+			return false, nil
+		}
+		if len(v.Items) > 0 {
+			return false, nil
+		}
+		var l infrav1alpha1.HCloudLoadBalancerList
+		if err := c.List(ctx, &l); err != nil {
+			return false, nil
+		}
+		if len(l.Items) > 0 {
+			return false, nil
+		}
+		return true, nil
+	})
+}
 
 func TestController(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -74,8 +132,7 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	// All tests share the same fake client. Individual tests reset its state
-	// or inject errors via the exported fields on FakeClient.
+	// All tests share the same fake client; Reset() runs in BeforeEach each spec.
 	fakeHCloud = hcloudclient.NewFakeClient()
 
 	if err = (&HCloudServerReconciler{
