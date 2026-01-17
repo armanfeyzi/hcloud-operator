@@ -3,6 +3,7 @@ package hcloud
 import (
 	"context"
 	"fmt"
+	"net"
 
 	hcloudgo "github.com/hetznercloud/hcloud-go/v2/hcloud"
 )
@@ -68,6 +69,25 @@ type LoadBalancerCreateOpts struct {
 	Labels           map[string]string
 }
 
+// NetworkInfo is a minimal view of a Hetzner Cloud private network.
+type NetworkInfo struct {
+	ID           int64
+	Name         string
+	IPRange      string
+	SubnetZones  []string
+	Labels       map[string]string
+	ExposeRoutes bool
+}
+
+// NetworkCreateOpts holds parameters for creating a private network.
+type NetworkCreateOpts struct {
+	Name                  string
+	IPRange               string
+	NetworkZones          []string
+	Labels                map[string]string
+	ExposeRoutesToVSwitch bool
+}
+
 // Interface defines the Hetzner Cloud operations required by the controller.
 // Using an interface here allows the controller to be tested with a fake client
 // without making real API calls.
@@ -93,6 +113,12 @@ type Interface interface {
 	DeleteLoadBalancer(ctx context.Context, id int64) error
 	AttachServerToLoadBalancer(ctx context.Context, loadBalancerID int64, serverID int64) error
 	DetachServerFromLoadBalancer(ctx context.Context, loadBalancerID int64, serverID int64) error
+
+	GetNetwork(ctx context.Context, id int64) (*NetworkInfo, error)
+	GetNetworkByName(ctx context.Context, name string) (*NetworkInfo, error)
+	CreateNetwork(ctx context.Context, opts NetworkCreateOpts) (*NetworkInfo, error)
+	DeleteNetwork(ctx context.Context, id int64) error
+	AddNetworkCloudSubnet(ctx context.Context, networkID int64, zone string) error
 }
 
 // Client wraps the Hetzner Cloud API client with idempotent helpers.
@@ -557,6 +583,116 @@ func (c *Client) DetachServerFromLoadBalancer(ctx context.Context, loadBalancerI
 	}
 	_ = action
 	return nil
+}
+
+// GetNetwork fetches a private network by Hetzner ID.
+func (c *Client) GetNetwork(ctx context.Context, id int64) (*NetworkInfo, error) {
+	n, _, err := c.hc.Network.GetByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("hcloud: GetNetwork(%d): %w", id, err)
+	}
+	if n == nil {
+		return nil, nil
+	}
+	return toNetworkInfo(n), nil
+}
+
+// GetNetworkByName fetches a private network by name.
+func (c *Client) GetNetworkByName(ctx context.Context, name string) (*NetworkInfo, error) {
+	n, _, err := c.hc.Network.GetByName(ctx, name)
+	if err != nil {
+		return nil, fmt.Errorf("hcloud: GetNetworkByName(%q): %w", name, err)
+	}
+	if n == nil {
+		return nil, nil
+	}
+	return toNetworkInfo(n), nil
+}
+
+// CreateNetwork creates a private network with the given IPv4 CIDR.
+func (c *Client) CreateNetwork(ctx context.Context, opts NetworkCreateOpts) (*NetworkInfo, error) {
+	_, ipNet, err := net.ParseCIDR(opts.IPRange)
+	if err != nil {
+		return nil, fmt.Errorf("hcloud: parse ipRange %q: %w", opts.IPRange, err)
+	}
+	createOpts := hcloudgo.NetworkCreateOpts{
+		Name:                  opts.Name,
+		IPRange:               ipNet,
+		Labels:                opts.Labels,
+		ExposeRoutesToVSwitch: opts.ExposeRoutesToVSwitch,
+	}
+	n, _, err := c.hc.Network.Create(ctx, createOpts)
+	if err != nil {
+		return nil, fmt.Errorf("hcloud: CreateNetwork %q: %w", opts.Name, err)
+	}
+	return toNetworkInfo(n), nil
+}
+
+// DeleteNetwork deletes a private network by ID.
+func (c *Client) DeleteNetwork(ctx context.Context, id int64) error {
+	n, _, err := c.hc.Network.GetByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("hcloud: GetNetwork(%d): %w", id, err)
+	}
+	if n == nil {
+		return nil
+	}
+	if _, err := c.hc.Network.Delete(ctx, n); err != nil {
+		return fmt.Errorf("hcloud: DeleteNetwork(%d): %w", id, err)
+	}
+	return nil
+}
+
+// AddNetworkCloudSubnet adds a Cloud subnet in the given Hetzner network zone.
+func (c *Client) AddNetworkCloudSubnet(ctx context.Context, networkID int64, zone string) error {
+	n, _, err := c.hc.Network.GetByID(ctx, networkID)
+	if err != nil {
+		return fmt.Errorf("hcloud: GetNetwork(%d): %w", networkID, err)
+	}
+	if n == nil {
+		return fmt.Errorf("hcloud: network %d not found", networkID)
+	}
+	for _, sn := range n.Subnets {
+		if sn.Type == hcloudgo.NetworkSubnetTypeCloud && string(sn.NetworkZone) == zone {
+			return nil
+		}
+	}
+	_, _, err = c.hc.Network.AddSubnet(ctx, n, hcloudgo.NetworkAddSubnetOpts{
+		Subnet: hcloudgo.NetworkSubnet{
+			Type:        hcloudgo.NetworkSubnetTypeCloud,
+			NetworkZone: hcloudgo.NetworkZone(zone),
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("hcloud: AddNetworkCloudSubnet(%d, %q): %w", networkID, zone, err)
+	}
+	return nil
+}
+
+func toNetworkInfo(n *hcloudgo.Network) *NetworkInfo {
+	if n == nil {
+		return nil
+	}
+	info := &NetworkInfo{
+		ID:           n.ID,
+		Name:         n.Name,
+		ExposeRoutes: n.ExposeRoutesToVSwitch,
+	}
+	if n.IPRange != nil {
+		info.IPRange = n.IPRange.String()
+	}
+	if n.Labels != nil {
+		info.Labels = make(map[string]string, len(n.Labels))
+		for k, v := range n.Labels {
+			info.Labels[k] = v
+		}
+	}
+	for _, sn := range n.Subnets {
+		if sn.Type == hcloudgo.NetworkSubnetTypeCloud {
+			info.SubnetZones = append(info.SubnetZones, string(sn.NetworkZone))
+		}
+	}
+	return info
 }
 
 func toLoadBalancerInfo(lb *hcloudgo.LoadBalancer) *LoadBalancerInfo {

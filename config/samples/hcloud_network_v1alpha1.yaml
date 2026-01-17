@@ -1,0 +1,14 @@
+# Minimal private network with one Cloud subnet in eu-central.
+# Install CRDs first: make install  (or kubectl apply -f config/crd/bases/)
+---
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudNetwork
+metadata:
+  name: demo-private-net
+spec:
+  ipRange: 10.200.0.0/16
+  networkZones:
+    - eu-central
+  labels:
+    env: demo
+    managed-by: hcloud-operator

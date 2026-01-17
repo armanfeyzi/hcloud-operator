@@ -3,6 +3,8 @@ package hcloud
 import (
 	"context"
 	"fmt"
+	"net"
+	"slices"
 	"sync"
 )
 
@@ -13,6 +15,7 @@ type FakeClient struct {
 	servers       map[int64]*ServerInfo
 	volumes       map[int64]*VolumeInfo
 	loadBalancers map[int64]*LoadBalancerInfo
+	networks      map[int64]*NetworkInfo
 	nextID        int64
 
 	// CreateErr, if non-nil, is returned by every CreateServer call.
@@ -29,6 +32,7 @@ func NewFakeClient() *FakeClient {
 		servers:       make(map[int64]*ServerInfo),
 		volumes:       make(map[int64]*VolumeInfo),
 		loadBalancers: make(map[int64]*LoadBalancerInfo),
+		networks:      make(map[int64]*NetworkInfo),
 		nextID:        1,
 	}
 }
@@ -40,6 +44,7 @@ func (f *FakeClient) Reset() {
 	f.servers = make(map[int64]*ServerInfo)
 	f.volumes = make(map[int64]*VolumeInfo)
 	f.loadBalancers = make(map[int64]*LoadBalancerInfo)
+	f.networks = make(map[int64]*NetworkInfo)
 	f.nextID = 1
 	f.CreateErr = nil
 	f.GetErr = nil
@@ -406,4 +411,114 @@ func (f *FakeClient) DetachServerFromLoadBalancer(ctx context.Context, loadBalan
 	}
 	lb.Targets = filtered
 	return nil
+}
+
+func (f *FakeClient) GetNetwork(ctx context.Context, id int64) (*NetworkInfo, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.GetErr != nil {
+		return nil, f.GetErr
+	}
+	n, ok := f.networks[id]
+	if !ok {
+		return nil, nil
+	}
+	return copyNetworkInfo(n), nil
+}
+
+func (f *FakeClient) GetNetworkByName(ctx context.Context, name string) (*NetworkInfo, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.GetErr != nil {
+		return nil, f.GetErr
+	}
+	for _, n := range f.networks {
+		if n.Name == name {
+			return copyNetworkInfo(n), nil
+		}
+	}
+	return nil, nil
+}
+
+func (f *FakeClient) CreateNetwork(ctx context.Context, opts NetworkCreateOpts) (*NetworkInfo, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.CreateErr != nil {
+		return nil, f.CreateErr
+	}
+	if _, _, err := net.ParseCIDR(opts.IPRange); err != nil {
+		return nil, fmt.Errorf("fake: invalid ipRange %q: %w", opts.IPRange, err)
+	}
+	for _, n := range f.networks {
+		if n.Name == opts.Name {
+			return nil, fmt.Errorf("fake: network with name %q already exists", opts.Name)
+		}
+	}
+
+	id := f.nextID
+	f.nextID++
+
+	info := &NetworkInfo{
+		ID:           id,
+		Name:         opts.Name,
+		IPRange:      opts.IPRange,
+		SubnetZones:  nil,
+		Labels:       cloneStringMap(opts.Labels),
+		ExposeRoutes: opts.ExposeRoutesToVSwitch,
+	}
+	f.networks[id] = info
+	return copyNetworkInfo(info), nil
+}
+
+func (f *FakeClient) DeleteNetwork(ctx context.Context, id int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.DeleteErr != nil {
+		return f.DeleteErr
+	}
+	delete(f.networks, id)
+	return nil
+}
+
+func (f *FakeClient) AddNetworkCloudSubnet(ctx context.Context, networkID int64, zone string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	n, ok := f.networks[networkID]
+	if !ok {
+		return fmt.Errorf("fake: network %d not found", networkID)
+	}
+	for _, z := range n.SubnetZones {
+		if z == zone {
+			return nil
+		}
+	}
+	n.SubnetZones = append(n.SubnetZones, zone)
+	slices.Sort(n.SubnetZones)
+	return nil
+}
+
+func copyNetworkInfo(n *NetworkInfo) *NetworkInfo {
+	if n == nil {
+		return nil
+	}
+	cp := *n
+	cp.SubnetZones = append([]string{}, n.SubnetZones...)
+	cp.Labels = cloneStringMap(n.Labels)
+	return &cp
+}
+
+func cloneStringMap(m map[string]string) map[string]string {
+	if m == nil {
+		return nil
+	}
+	out := make(map[string]string, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
 }

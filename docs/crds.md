@@ -17,6 +17,8 @@ Manages a single Hetzner Cloud virtual server.
 | `sshKeys` | []string | No | List of SSH key names/IDs to inject at creation |
 | `userData` | string | No | Cloud-init configuration |
 
+Server attachment to a private `HCloudNetwork` is not implemented yet; see the roadmap.
+
 ### Status
 
 | Field | Type | Description |
@@ -56,6 +58,45 @@ Manages a single Hetzner Cloud volume and optional attachment to a server.
 | `serverRef.name` | string | No | Name of target `HCloudServer` to attach |
 | `format` | string | No | Filesystem type to create |
 | `labels` | map[string]string | No | Cloud resource labels |
+
+## `HCloudNetwork`
+Group: `infra.hkc.io/v1alpha1`
+Scope: `Cluster`
+
+Manages a Hetzner Cloud private network and optional Cloud subnets per network zone.
+
+### Spec
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `ipRange` | string | Yes | IPv4 CIDR for the network (e.g. `10.0.0.0/16`). Immutable after creation. |
+| `networkZones` | []string | No | Hetzner network zones where a Cloud subnet is created (e.g. `eu-central`, `us-east`, `us-west`). Immutable after creation. |
+| `exposeRoutesToVSwitch` | bool | No | Expose routes to an attached vSwitch when applicable. |
+| `labels` | map[string]string | No | Cloud resource labels |
+
+### Status
+
+| Field | Type | Description |
+|---|---|---|
+| `networkID` | int64 | Hetzner Cloud network ID |
+| `ipRange` | string | Observed CIDR |
+| `subnetZones` | []string | Zones where a Cloud subnet exists |
+| `conditions` | []Condition | Status conditions (e.g. `Ready=True`) |
+
+### Example
+
+```yaml
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudNetwork
+metadata:
+  name: demo-private
+spec:
+  ipRange: 10.100.0.0/16
+  networkZones:
+    - eu-central
+  labels:
+    env: demo
+```
 
 ## `HCloudLoadBalancer`
 Group: `infra.hkc.io/v1alpha1`

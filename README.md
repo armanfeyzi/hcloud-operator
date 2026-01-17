@@ -32,6 +32,7 @@ You can combine HKIC with orchestrators like [Kube Resource Orchestrator (kro)](
 ## Features
 
 - **Servers (`HCloudServer`):** Provision and manage Hetzner Virtual Machines, including **vertical scaling** (`serverType` changes) via power off → change type → power on.
+- **Networks (`HCloudNetwork`):** Provision private networks and optional per-zone Cloud subnets (`networkZones`).
 - **Volumes (`HCloudVolume`):** Provision block storage and automatically attach it to your servers using Kubernetes native references (`serverRef`).
 - **Load Balancers (`HCloudLoadBalancer`):** Expose selected servers through a public Hetzner Load Balancer using `serverSelector` label matching.
 - **Idempotent Operations:** The controller is designed to handle API interruptions safely without creating duplicate infrastructure.
@@ -53,7 +54,7 @@ make install
 kubectl apply -f config/crd/bases/
 ```
 
-If you skip this step, `kubectl apply` may create `HCloudServer` objects but fail on `HCloudVolume` / `HCloudLoadBalancer` with “resource mapping not found”.
+If you skip this step, `kubectl apply` may create `HCloudServer` objects but fail on `HCloudVolume` / `HCloudLoadBalancer` / `HCloudNetwork` with “resource mapping not found”.
 
 ### 3. Production Installation (operator in-cluster)
 

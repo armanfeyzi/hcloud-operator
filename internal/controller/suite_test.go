@@ -63,6 +63,12 @@ func drainClusterCRs(ctx context.Context, c client.Client) {
 			_ = client.IgnoreNotFound(c.Delete(ctx, &lbs.Items[i]))
 		}
 	}
+	var nets infrav1alpha1.HCloudNetworkList
+	if err := c.List(ctx, &nets); err == nil {
+		for i := range nets.Items {
+			_ = client.IgnoreNotFound(c.Delete(ctx, &nets.Items[i]))
+		}
+	}
 	_ = wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 20*time.Second, true, func(ctx context.Context) (bool, error) {
 		var s infrav1alpha1.HCloudServerList
 		if err := c.List(ctx, &s); err != nil {
@@ -83,6 +89,13 @@ func drainClusterCRs(ctx context.Context, c client.Client) {
 			return false, nil
 		}
 		if len(l.Items) > 0 {
+			return false, nil
+		}
+		var n infrav1alpha1.HCloudNetworkList
+		if err := c.List(ctx, &n); err != nil {
+			return false, nil
+		}
+		if len(n.Items) > 0 {
 			return false, nil
 		}
 		return true, nil
@@ -159,6 +172,15 @@ func TestMain(m *testing.M) {
 		HCloudClient: fakeHCloud,
 	}).SetupWithManager(k8sManager); err != nil {
 		fmt.Printf("failed to setup load balancer reconciler: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err = (&HCloudNetworkReconciler{
+		Client:       k8sManager.GetClient(),
+		Scheme:       k8sManager.GetScheme(),
+		HCloudClient: fakeHCloud,
+	}).SetupWithManager(k8sManager); err != nil {
+		fmt.Printf("failed to setup network reconciler: %v\n", err)
 		os.Exit(1)
 	}
 
