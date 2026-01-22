@@ -73,6 +73,18 @@ spec:
                   nbg1, hel1, ash, hil).
                 minLength: 1
                 type: string
+              networkRef:
+                description: |-
+                  NetworkRef points to an HCloudNetwork by name.
+                  When set, the controller attaches this server to the referenced private network.
+                properties:
+                  name:
+                    description: |-
+                      Name of the referent.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
               serverType:
                 description: |-
                   ServerType is the Hetzner Cloud server type (e.g. cx21, cx31, cpx41).

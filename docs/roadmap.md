@@ -21,7 +21,7 @@ The vision of the **Hetzner Kubernetes Infrastructure Controller (HKIC)** is to 
 
 ## Phase 3: Networking & clustering — **In progress**
 - [x] `HCloudNetwork` CRD and reconciler (private networks: `ipRange`, optional `networkZones` for Cloud subnets, labels; adopt-by-name; finalizer cleanup)
-- [ ] Attach Cloud Servers to `HCloudNetwork` (API: attach server to network — new field on `HCloudServer` or separate CRD)
+- [x] Attach Cloud Servers to `HCloudNetwork` (`HCloudServer.spec.networkRef`)
 - [ ] `HCloudFirewall` CRD and reconciler
 - [ ] Cloud-init / node bootstrap templates (e.g. k3s join) built on networks + servers
 

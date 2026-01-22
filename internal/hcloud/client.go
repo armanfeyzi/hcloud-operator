@@ -17,6 +17,7 @@ type ServerInfo struct {
 	State      string
 	PublicIPv4 string
 	PublicIPv6 string
+	NetworkIDs []int64
 }
 
 // ServerCreateOpts holds the parameters for creating a Hetzner Cloud server.
@@ -99,6 +100,7 @@ type Interface interface {
 	PowerOffServer(ctx context.Context, id int64) error
 	PowerOnServer(ctx context.Context, id int64) error
 	ChangeServerType(ctx context.Context, id int64, serverType string, upgradeDisk bool) error
+	AttachServerToNetwork(ctx context.Context, serverID int64, networkID int64) error
 
 	GetVolume(ctx context.Context, id int64) (*VolumeInfo, error)
 	GetVolumeByName(ctx context.Context, name string) (*VolumeInfo, error)
@@ -309,7 +311,44 @@ func toServerInfo(s *hcloudgo.Server) *ServerInfo {
 	if s.PublicNet.IPv6.Network != nil {
 		info.PublicIPv6 = s.PublicNet.IPv6.Network.String()
 	}
+	for _, pn := range s.PrivateNet {
+		if pn.Network != nil {
+			info.NetworkIDs = append(info.NetworkIDs, pn.Network.ID)
+		}
+	}
 	return info
+}
+
+// AttachServerToNetwork attaches an existing server to an existing private network.
+func (c *Client) AttachServerToNetwork(ctx context.Context, serverID int64, networkID int64) error {
+	server, _, err := c.hc.Server.GetByID(ctx, serverID)
+	if err != nil {
+		return fmt.Errorf("hcloud: fetch server %d: %w", serverID, err)
+	}
+	if server == nil {
+		return fmt.Errorf("hcloud: server %d not found", serverID)
+	}
+	for _, pn := range server.PrivateNet {
+		if pn.Network != nil && pn.Network.ID == networkID {
+			return nil
+		}
+	}
+
+	network, _, err := c.hc.Network.GetByID(ctx, networkID)
+	if err != nil {
+		return fmt.Errorf("hcloud: fetch network %d: %w", networkID, err)
+	}
+	if network == nil {
+		return fmt.Errorf("hcloud: network %d not found", networkID)
+	}
+
+	_, _, err = c.hc.Server.AttachToNetwork(ctx, server, hcloudgo.ServerAttachToNetworkOpts{
+		Network: network,
+	})
+	if err != nil {
+		return fmt.Errorf("hcloud: AttachServerToNetwork(%d, %d): %w", serverID, networkID, err)
+	}
+	return nil
 }
 
 // GetVolume fetches a volume by its Hetzner Cloud ID.

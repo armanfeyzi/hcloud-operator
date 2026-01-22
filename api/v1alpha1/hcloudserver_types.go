@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -37,6 +38,11 @@ type HCloudServerSpec struct {
 	// +optional
 	// +kubebuilder:validation:MaxLength=32768
 	UserData string `json:"userData,omitempty"`
+
+	// NetworkRef points to an HCloudNetwork by name.
+	// When set, the controller attaches this server to the referenced private network.
+	// +optional
+	NetworkRef *corev1.LocalObjectReference `json:"networkRef,omitempty"`
 }
 
 // HCloudServerStatus defines the observed state of an HCloudServer.

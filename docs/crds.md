@@ -16,8 +16,7 @@ Manages a single Hetzner Cloud virtual server.
 | `labels` | map[string]string | No | Cloud resource labels |
 | `sshKeys` | []string | No | List of SSH key names/IDs to inject at creation |
 | `userData` | string | No | Cloud-init configuration |
-
-Server attachment to a private `HCloudNetwork` is not implemented yet; see the roadmap.
+| `networkRef.name` | string | No | Name of target `HCloudNetwork` to attach this server to |
 
 ### Status
 

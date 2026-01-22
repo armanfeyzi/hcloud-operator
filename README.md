@@ -31,7 +31,7 @@ You can combine HKIC with orchestrators like [Kube Resource Orchestrator (kro)](
 
 ## Features
 
-- **Servers (`HCloudServer`):** Provision and manage Hetzner Virtual Machines, including **vertical scaling** (`serverType` changes) via power off → change type → power on.
+- **Servers (`HCloudServer`):** Provision and manage Hetzner Virtual Machines, including **vertical scaling** (`serverType` changes) via power off → change type → power on, and private network attachment via `spec.networkRef`.
 - **Networks (`HCloudNetwork`):** Provision private networks and optional per-zone Cloud subnets (`networkZones`).
 - **Volumes (`HCloudVolume`):** Provision block storage and automatically attach it to your servers using Kubernetes native references (`serverRef`).
 - **Load Balancers (`HCloudLoadBalancer`):** Expose selected servers through a public Hetzner Load Balancer using `serverSelector` label matching.
@@ -92,9 +92,18 @@ make run
 
 ### 5. Create Infrastructure
 
-Define a server and an attached volume:
+Define a private network, a server attached to it, and a volume attached to the server:
 
 ```yaml
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudNetwork
+metadata:
+  name: app-private-net
+spec:
+  ipRange: 10.80.0.0/16
+  networkZones:
+    - eu-central
+---
 apiVersion: infra.hkc.io/v1alpha1
 kind: HCloudServer
 metadata:
@@ -103,6 +112,8 @@ spec:
   serverType: cx21
   image: ubuntu-22.04
   location: fsn1
+  networkRef:
+    name: app-private-net
 ---
 apiVersion: infra.hkc.io/v1alpha1
 kind: HCloudVolume

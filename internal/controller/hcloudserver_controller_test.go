@@ -6,6 +6,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -183,6 +184,68 @@ var _ = Describe("HCloudServerReconciler", func() {
 
 			By("verifying no server was created in the fake backend")
 			Expect(fakeHCloud.Len()).To(Equal(0))
+		})
+
+		It("attaches the server to referenced HCloudNetwork", func() {
+			networkName := fmt.Sprintf("test-network-%d", time.Now().UnixNano())
+			networkKey := types.NamespacedName{Name: networkName}
+
+			By("creating a private network")
+			netObj := &infrav1alpha1.HCloudNetwork{
+				ObjectMeta: metav1.ObjectMeta{Name: networkName},
+				Spec: infrav1alpha1.HCloudNetworkSpec{
+					IPRange: "10.71.0.0/16",
+				},
+			}
+			Expect(k8sClient.Create(ctx, netObj)).To(Succeed())
+			DeferCleanup(func() {
+				obj := &infrav1alpha1.HCloudNetwork{}
+				if err := k8sClient.Get(ctx, networkKey, obj); err == nil {
+					_ = k8sClient.Delete(ctx, obj)
+				}
+			})
+
+			By("waiting for network status ID")
+			var networkID int64
+			Eventually(func() int64 {
+				obj := &infrav1alpha1.HCloudNetwork{}
+				_ = k8sClient.Get(ctx, networkKey, obj)
+				return obj.Status.NetworkID
+			}, waitTimeout, pollInterval).Should(BeNumerically(">", 0))
+			_ = k8sClient.Get(ctx, networkKey, netObj)
+			networkID = netObj.Status.NetworkID
+
+			By("creating a server that references the network")
+			server := newServer(serverName)
+			server.Spec.NetworkRef = &corev1.LocalObjectReference{Name: networkName}
+			Expect(k8sClient.Create(ctx, server)).To(Succeed())
+
+			By("waiting for server provision")
+			var sid int64
+			Eventually(func() int64 {
+				obj, _ := fetchServer(serverName)()
+				if obj == nil {
+					return 0
+				}
+				return obj.Status.ServerID
+			}, waitTimeout, pollInterval).Should(BeNumerically(">", 0))
+			obj, err := fetchServer(serverName)()
+			Expect(err).NotTo(HaveOccurred())
+			sid = obj.Status.ServerID
+
+			By("verifying network attachment exists in fake backend")
+			Eventually(func() bool {
+				s, err := fakeHCloud.GetServer(ctx, sid)
+				if err != nil || s == nil {
+					return false
+				}
+				for _, id := range s.NetworkIDs {
+					if id == networkID {
+						return true
+					}
+				}
+				return false
+			}, waitTimeout, pollInterval).Should(BeTrue())
 		})
 	})
 

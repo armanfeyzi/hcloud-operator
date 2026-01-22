@@ -187,7 +187,55 @@ func (r *HCloudServerReconciler) reconcileExistingServer(ctx context.Context, ob
 		return resizeRequeueDelay, r.Status().Update(ctx, obj)
 	}
 
+	if err := r.ensureServerNetworkAttachment(ctx, obj, s); err != nil {
+		return 0, err
+	}
+
 	return 0, r.syncStatus(ctx, obj, s)
+}
+
+func (r *HCloudServerReconciler) ensureServerNetworkAttachment(
+	ctx context.Context,
+	obj *infrav1alpha1.HCloudServer,
+	s *hcloudclient.ServerInfo,
+) error {
+	if obj.Spec.NetworkRef == nil || obj.Spec.NetworkRef.Name == "" {
+		return nil
+	}
+
+	network := &infrav1alpha1.HCloudNetwork{}
+	if err := r.Get(ctx, client.ObjectKey{Name: obj.Spec.NetworkRef.Name}, network); err != nil {
+		return fmt.Errorf("get referenced HCloudNetwork %q: %w", obj.Spec.NetworkRef.Name, err)
+	}
+	if network.Status.NetworkID == 0 {
+		return fmt.Errorf("referenced HCloudNetwork %q is not ready (status.networkID is empty)", network.Name)
+	}
+	if containsInt64(s.NetworkIDs, network.Status.NetworkID) {
+		return nil
+	}
+	if len(s.NetworkIDs) > 0 {
+		return fmt.Errorf(
+			"server already attached to different network(s) %v; migration is not implemented yet",
+			s.NetworkIDs,
+		)
+	}
+	if err := r.HCloudClient.AttachServerToNetwork(ctx, s.ID, network.Status.NetworkID); err != nil {
+		return fmt.Errorf(
+			"attach server %d to network %q (%d): %w",
+			s.ID,
+			network.Name,
+			network.Status.NetworkID,
+			err,
+		)
+	}
+	updated, err := r.HCloudClient.GetServer(ctx, s.ID)
+	if err != nil {
+		return fmt.Errorf("refresh server after network attach: %w", err)
+	}
+	if updated != nil {
+		*s = *updated
+	}
+	return nil
 }
 
 func (r *HCloudServerReconciler) reconcileServerTypeMismatch(ctx context.Context, obj *infrav1alpha1.HCloudServer, s *hcloudclient.ServerInfo) (time.Duration, error) {
@@ -294,4 +342,13 @@ func (r *HCloudServerReconciler) setCondition(
 		Message:            message,
 		LastTransitionTime: metav1.Now(),
 	})
+}
+
+func containsInt64(items []int64, want int64) bool {
+	for _, item := range items {
+		if item == want {
+			return true
+		}
+	}
+	return false
 }

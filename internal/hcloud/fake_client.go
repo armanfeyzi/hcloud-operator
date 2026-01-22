@@ -62,8 +62,7 @@ func (f *FakeClient) GetServer(ctx context.Context, id int64) (*ServerInfo, erro
 	if !ok {
 		return nil, nil
 	}
-	cp := *s
-	return &cp, nil
+	return copyServerInfo(s), nil
 }
 
 func (f *FakeClient) GetServerByName(ctx context.Context, name string) (*ServerInfo, error) {
@@ -75,8 +74,7 @@ func (f *FakeClient) GetServerByName(ctx context.Context, name string) (*ServerI
 	}
 	for _, s := range f.servers {
 		if s.Name == name {
-			cp := *s
-			return &cp, nil
+			return copyServerInfo(s), nil
 		}
 	}
 	return nil, nil
@@ -107,10 +105,10 @@ func (f *FakeClient) CreateServer(ctx context.Context, opts ServerCreateOpts) (*
 		State:      "running",
 		PublicIPv4: fmt.Sprintf("1.2.3.%d", id),
 		PublicIPv6: fmt.Sprintf("2001:db8::%d/64", id),
+		NetworkIDs: nil,
 	}
 	f.servers[id] = info
-	cp := *info
-	return &cp, nil
+	return copyServerInfo(info), nil
 }
 
 func (f *FakeClient) DeleteServer(ctx context.Context, id int64) error {
@@ -172,6 +170,27 @@ func (f *FakeClient) ChangeServerType(ctx context.Context, id int64, serverType 
 		return fmt.Errorf("fake: server %d must be off to change type (state=%s)", id, s.State)
 	}
 	s.ServerType = serverType
+	return nil
+}
+
+func (f *FakeClient) AttachServerToNetwork(ctx context.Context, serverID int64, networkID int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	s, ok := f.servers[serverID]
+	if !ok {
+		return fmt.Errorf("fake: server %d not found", serverID)
+	}
+	if _, ok := f.networks[networkID]; !ok {
+		return fmt.Errorf("fake: network %d not found", networkID)
+	}
+	for _, existing := range s.NetworkIDs {
+		if existing == networkID {
+			return nil
+		}
+	}
+	s.NetworkIDs = append(s.NetworkIDs, networkID)
+	slices.Sort(s.NetworkIDs)
 	return nil
 }
 
@@ -509,6 +528,15 @@ func copyNetworkInfo(n *NetworkInfo) *NetworkInfo {
 	cp := *n
 	cp.SubnetZones = append([]string{}, n.SubnetZones...)
 	cp.Labels = cloneStringMap(n.Labels)
+	return &cp
+}
+
+func copyServerInfo(s *ServerInfo) *ServerInfo {
+	if s == nil {
+		return nil
+	}
+	cp := *s
+	cp.NetworkIDs = append([]int64{}, s.NetworkIDs...)
 	return &cp
 }
 
