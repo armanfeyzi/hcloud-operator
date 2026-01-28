@@ -246,6 +246,127 @@ var _ = Describe("HCloudServerReconciler", func() {
 				}
 				return false
 			}, waitTimeout, pollInterval).Should(BeTrue())
+
+			By("persisting managed network in status")
+			Eventually(func() int64 {
+				o, _ := fetchServer(serverName)()
+				if o == nil {
+					return 0
+				}
+				return o.Status.AppliedNetworkID
+			}, waitTimeout, pollInterval).Should(Equal(networkID))
+		})
+
+		It("migrates attachment when networkRef changes and detaches when removed", func() {
+			networkAName := fmt.Sprintf("test-network-a-%d", time.Now().UnixNano())
+			networkBName := fmt.Sprintf("test-network-b-%d", time.Now().UnixNano())
+			networkAKey := types.NamespacedName{Name: networkAName}
+			networkBKey := types.NamespacedName{Name: networkBName}
+
+			createNet := func(name, cidr string) types.NamespacedName {
+				key := types.NamespacedName{Name: name}
+				obj := &infrav1alpha1.HCloudNetwork{
+					ObjectMeta: metav1.ObjectMeta{Name: name},
+					Spec: infrav1alpha1.HCloudNetworkSpec{
+						IPRange: cidr,
+					},
+				}
+				Expect(k8sClient.Create(ctx, obj)).To(Succeed())
+				DeferCleanup(func() {
+					cleanup := &infrav1alpha1.HCloudNetwork{}
+					if err := k8sClient.Get(ctx, key, cleanup); err == nil {
+						_ = k8sClient.Delete(ctx, cleanup)
+					}
+				})
+				return key
+			}
+
+			createNet(networkAName, "10.72.0.0/16")
+			createNet(networkBName, "10.73.0.0/16")
+
+			var networkAID int64
+			Eventually(func() int64 {
+				obj := &infrav1alpha1.HCloudNetwork{}
+				_ = k8sClient.Get(ctx, networkAKey, obj)
+				return obj.Status.NetworkID
+			}, waitTimeout, pollInterval).Should(BeNumerically(">", 0))
+			netA := &infrav1alpha1.HCloudNetwork{}
+			Expect(k8sClient.Get(ctx, networkAKey, netA)).To(Succeed())
+			networkAID = netA.Status.NetworkID
+
+			var networkBID int64
+			Eventually(func() int64 {
+				obj := &infrav1alpha1.HCloudNetwork{}
+				_ = k8sClient.Get(ctx, networkBKey, obj)
+				return obj.Status.NetworkID
+			}, waitTimeout, pollInterval).Should(BeNumerically(">", 0))
+			netB := &infrav1alpha1.HCloudNetwork{}
+			Expect(k8sClient.Get(ctx, networkBKey, netB)).To(Succeed())
+			networkBID = netB.Status.NetworkID
+
+			server := newServer(serverName)
+			server.Spec.NetworkRef = &corev1.LocalObjectReference{Name: networkAName}
+			Expect(k8sClient.Create(ctx, server)).To(Succeed())
+
+			var sid int64
+			Eventually(func() int64 {
+				obj, _ := fetchServer(serverName)()
+				if obj == nil {
+					return 0
+				}
+				return obj.Status.ServerID
+			}, waitTimeout, pollInterval).Should(BeNumerically(">", 0))
+			cur, err := fetchServer(serverName)()
+			Expect(err).NotTo(HaveOccurred())
+			sid = cur.Status.ServerID
+
+			Eventually(func() int64 {
+				obj, _ := fetchServer(serverName)()
+				if obj == nil {
+					return 0
+				}
+				return obj.Status.AppliedNetworkID
+			}, waitTimeout, pollInterval).Should(Equal(networkAID))
+
+			cur.Spec.NetworkRef = &corev1.LocalObjectReference{Name: networkBName}
+			Expect(k8sClient.Update(ctx, cur)).To(Succeed())
+
+			Eventually(func() int64 {
+				obj, _ := fetchServer(serverName)()
+				if obj == nil {
+					return 0
+				}
+				return obj.Status.AppliedNetworkID
+			}, waitTimeout, pollInterval).Should(Equal(networkBID))
+
+			Eventually(func() []int64 {
+				s, _ := fakeHCloud.GetServer(ctx, sid)
+				if s == nil {
+					return nil
+				}
+				return s.NetworkIDs
+			}, waitTimeout, pollInterval).Should(Equal([]int64{networkBID}))
+
+			cur, err = fetchServer(serverName)()
+			Expect(err).NotTo(HaveOccurred())
+			cur.Spec.NetworkRef = nil
+			Expect(k8sClient.Update(ctx, cur)).To(Succeed())
+
+			Eventually(func() int64 {
+				obj, _ := fetchServer(serverName)()
+				if obj == nil {
+					return -1
+				}
+				return obj.Status.AppliedNetworkID
+			}, waitTimeout, pollInterval).Should(Equal(int64(0)))
+
+			Eventually(func() []int64 {
+				s, _ := fakeHCloud.GetServer(ctx, sid)
+				if s == nil {
+					return nil
+				}
+				return s.NetworkIDs
+			}, waitTimeout, pollInterval).Should(BeEmpty())
 		})
 	})
 

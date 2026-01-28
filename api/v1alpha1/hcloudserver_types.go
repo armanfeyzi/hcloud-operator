@@ -68,6 +68,10 @@ type HCloudServerStatus struct {
 	// +optional
 	PublicIPv6 string `json:"publicIPv6,omitempty"`
 
+	// AppliedNetworkID is the network ID currently managed for this server via spec.networkRef.
+	// +optional
+	AppliedNetworkID int64 `json:"appliedNetworkID,omitempty"`
+
 	// Conditions represent the latest available observations of the server's current state.
 	// +optional
 	// +listType=map

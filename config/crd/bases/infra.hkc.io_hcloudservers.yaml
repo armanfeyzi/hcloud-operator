@@ -116,6 +116,11 @@ spec:
           status:
             description: HCloudServerStatus defines the observed state of an HCloudServer.
             properties:
+              appliedNetworkID:
+                description: AppliedNetworkID is the network ID currently managed
+                  for this server via spec.networkRef.
+                format: int64
+                type: integer
               appliedServerType:
                 description: |-
                   AppliedServerType is the server type the controller has fully converged to (API type matches spec and server was running).

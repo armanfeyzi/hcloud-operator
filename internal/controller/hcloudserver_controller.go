@@ -200,6 +200,19 @@ func (r *HCloudServerReconciler) ensureServerNetworkAttachment(
 	s *hcloudclient.ServerInfo,
 ) error {
 	if obj.Spec.NetworkRef == nil || obj.Spec.NetworkRef.Name == "" {
+		if obj.Status.AppliedNetworkID != 0 {
+			if err := r.HCloudClient.DetachServerFromNetwork(ctx, s.ID, obj.Status.AppliedNetworkID); err != nil {
+				return fmt.Errorf("detach server %d from previously managed network %d: %w", s.ID, obj.Status.AppliedNetworkID, err)
+			}
+			updated, err := r.HCloudClient.GetServer(ctx, s.ID)
+			if err != nil {
+				return fmt.Errorf("refresh server after network detach: %w", err)
+			}
+			if updated != nil {
+				*s = *updated
+			}
+			obj.Status.AppliedNetworkID = 0
+		}
 		return nil
 	}
 
@@ -210,31 +223,45 @@ func (r *HCloudServerReconciler) ensureServerNetworkAttachment(
 	if network.Status.NetworkID == 0 {
 		return fmt.Errorf("referenced HCloudNetwork %q is not ready (status.networkID is empty)", network.Name)
 	}
-	if containsInt64(s.NetworkIDs, network.Status.NetworkID) {
-		return nil
+
+	if obj.Status.AppliedNetworkID != 0 && obj.Status.AppliedNetworkID != network.Status.NetworkID {
+		if err := r.HCloudClient.DetachServerFromNetwork(ctx, s.ID, obj.Status.AppliedNetworkID); err != nil {
+			return fmt.Errorf(
+				"detach server %d from previously managed network %d: %w",
+				s.ID,
+				obj.Status.AppliedNetworkID,
+				err,
+			)
+		}
+		updated, err := r.HCloudClient.GetServer(ctx, s.ID)
+		if err != nil {
+			return fmt.Errorf("refresh server after network migration detach: %w", err)
+		}
+		if updated != nil {
+			*s = *updated
+		}
+		obj.Status.AppliedNetworkID = 0
 	}
-	if len(s.NetworkIDs) > 0 {
-		return fmt.Errorf(
-			"server already attached to different network(s) %v; migration is not implemented yet",
-			s.NetworkIDs,
-		)
+
+	if !containsInt64(s.NetworkIDs, network.Status.NetworkID) {
+		if err := r.HCloudClient.AttachServerToNetwork(ctx, s.ID, network.Status.NetworkID); err != nil {
+			return fmt.Errorf(
+				"attach server %d to network %q (%d): %w",
+				s.ID,
+				network.Name,
+				network.Status.NetworkID,
+				err,
+			)
+		}
+		updated, err := r.HCloudClient.GetServer(ctx, s.ID)
+		if err != nil {
+			return fmt.Errorf("refresh server after network attach: %w", err)
+		}
+		if updated != nil {
+			*s = *updated
+		}
 	}
-	if err := r.HCloudClient.AttachServerToNetwork(ctx, s.ID, network.Status.NetworkID); err != nil {
-		return fmt.Errorf(
-			"attach server %d to network %q (%d): %w",
-			s.ID,
-			network.Name,
-			network.Status.NetworkID,
-			err,
-		)
-	}
-	updated, err := r.HCloudClient.GetServer(ctx, s.ID)
-	if err != nil {
-		return fmt.Errorf("refresh server after network attach: %w", err)
-	}
-	if updated != nil {
-		*s = *updated
-	}
+	obj.Status.AppliedNetworkID = network.Status.NetworkID
 	return nil
 }
 

@@ -101,6 +101,7 @@ type Interface interface {
 	PowerOnServer(ctx context.Context, id int64) error
 	ChangeServerType(ctx context.Context, id int64, serverType string, upgradeDisk bool) error
 	AttachServerToNetwork(ctx context.Context, serverID int64, networkID int64) error
+	DetachServerFromNetwork(ctx context.Context, serverID int64, networkID int64) error
 
 	GetVolume(ctx context.Context, id int64) (*VolumeInfo, error)
 	GetVolumeByName(ctx context.Context, name string) (*VolumeInfo, error)
@@ -347,6 +348,43 @@ func (c *Client) AttachServerToNetwork(ctx context.Context, serverID int64, netw
 	})
 	if err != nil {
 		return fmt.Errorf("hcloud: AttachServerToNetwork(%d, %d): %w", serverID, networkID, err)
+	}
+	return nil
+}
+
+// DetachServerFromNetwork detaches a server from a private network.
+func (c *Client) DetachServerFromNetwork(ctx context.Context, serverID int64, networkID int64) error {
+	server, _, err := c.hc.Server.GetByID(ctx, serverID)
+	if err != nil {
+		return fmt.Errorf("hcloud: fetch server %d: %w", serverID, err)
+	}
+	if server == nil {
+		return fmt.Errorf("hcloud: server %d not found", serverID)
+	}
+	attached := false
+	for _, pn := range server.PrivateNet {
+		if pn.Network != nil && pn.Network.ID == networkID {
+			attached = true
+			break
+		}
+	}
+	if !attached {
+		return nil
+	}
+
+	network, _, err := c.hc.Network.GetByID(ctx, networkID)
+	if err != nil {
+		return fmt.Errorf("hcloud: fetch network %d: %w", networkID, err)
+	}
+	if network == nil {
+		return nil
+	}
+
+	_, _, err = c.hc.Server.DetachFromNetwork(ctx, server, hcloudgo.ServerDetachFromNetworkOpts{
+		Network: network,
+	})
+	if err != nil {
+		return fmt.Errorf("hcloud: DetachServerFromNetwork(%d, %d): %w", serverID, networkID, err)
 	}
 	return nil
 }

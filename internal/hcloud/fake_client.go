@@ -194,6 +194,24 @@ func (f *FakeClient) AttachServerToNetwork(ctx context.Context, serverID int64, 
 	return nil
 }
 
+func (f *FakeClient) DetachServerFromNetwork(ctx context.Context, serverID int64, networkID int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	s, ok := f.servers[serverID]
+	if !ok {
+		return fmt.Errorf("fake: server %d not found", serverID)
+	}
+	filtered := s.NetworkIDs[:0]
+	for _, id := range s.NetworkIDs {
+		if id != networkID {
+			filtered = append(filtered, id)
+		}
+	}
+	s.NetworkIDs = filtered
+	return nil
+}
+
 // Len returns the number of servers currently tracked by the fake.
 func (f *FakeClient) Len() int {
 	f.mu.Lock()

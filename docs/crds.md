@@ -27,6 +27,7 @@ Manages a single Hetzner Cloud virtual server.
 | `appliedServerType` | string | Last server type the controller fully reconciled (spec matches Hetzner and the server was `running`). Empty or stale while a type change is in progress. |
 | `publicIPv4` | string | The allocated public IPv4 address |
 | `publicIPv6` | string | The allocated public IPv6 address network |
+| `appliedNetworkID` | int64 | Last private network ID managed via `spec.networkRef` (cleared when `networkRef` is unset) |
 | `conditions` | []Condition | Status conditions (e.g. `Ready=True`) |
 
 ### Example

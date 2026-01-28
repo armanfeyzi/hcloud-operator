@@ -31,7 +31,7 @@ You can combine HKIC with orchestrators like [Kube Resource Orchestrator (kro)](
 
 ## Features
 
-- **Servers (`HCloudServer`):** Provision and manage Hetzner Virtual Machines, including **vertical scaling** (`serverType` changes) via power off → change type → power on, and private network attachment via `spec.networkRef`.
+- **Servers (`HCloudServer`):** Provision and manage Hetzner Virtual Machines, including **vertical scaling** (`serverType` changes) via power off → change type → power on, and private network lifecycle via `spec.networkRef` (attach, migrate, detach).
 - **Networks (`HCloudNetwork`):** Provision private networks and optional per-zone Cloud subnets (`networkZones`).
 - **Volumes (`HCloudVolume`):** Provision block storage and automatically attach it to your servers using Kubernetes native references (`serverRef`).
 - **Load Balancers (`HCloudLoadBalancer`):** Expose selected servers through a public Hetzner Load Balancer using `serverSelector` label matching.
