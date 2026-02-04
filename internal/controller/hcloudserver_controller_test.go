@@ -7,6 +7,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -255,6 +256,19 @@ var _ = Describe("HCloudServerReconciler", func() {
 				}
 				return o.Status.AppliedNetworkID
 			}, waitTimeout, pollInterval).Should(Equal(networkID))
+
+			By("setting explicit Ready reason for network attachment")
+			Eventually(func() string {
+				o, _ := fetchServer(serverName)()
+				if o == nil {
+					return ""
+				}
+				cond := meta.FindStatusCondition(o.Status.Conditions, conditionTypeReady)
+				if cond == nil {
+					return ""
+				}
+				return cond.Reason
+			}, waitTimeout, pollInterval).Should(Equal(readyReasonNetworkAttached))
 		})
 
 		It("migrates attachment when networkRef changes and detaches when removed", func() {
@@ -339,6 +353,18 @@ var _ = Describe("HCloudServerReconciler", func() {
 				return obj.Status.AppliedNetworkID
 			}, waitTimeout, pollInterval).Should(Equal(networkBID))
 
+			Eventually(func() string {
+				o, _ := fetchServer(serverName)()
+				if o == nil {
+					return ""
+				}
+				cond := meta.FindStatusCondition(o.Status.Conditions, conditionTypeReady)
+				if cond == nil {
+					return ""
+				}
+				return cond.Reason
+			}, waitTimeout, pollInterval).Should(Equal(readyReasonNetworkMigrated))
+
 			Eventually(func() []int64 {
 				s, _ := fakeHCloud.GetServer(ctx, sid)
 				if s == nil {
@@ -359,6 +385,18 @@ var _ = Describe("HCloudServerReconciler", func() {
 				}
 				return obj.Status.AppliedNetworkID
 			}, waitTimeout, pollInterval).Should(Equal(int64(0)))
+
+			Eventually(func() string {
+				o, _ := fetchServer(serverName)()
+				if o == nil {
+					return ""
+				}
+				cond := meta.FindStatusCondition(o.Status.Conditions, conditionTypeReady)
+				if cond == nil {
+					return ""
+				}
+				return cond.Reason
+			}, waitTimeout, pollInterval).Should(Equal(readyReasonNetworkDetached))
 
 			Eventually(func() []int64 {
 				s, _ := fakeHCloud.GetServer(ctx, sid)

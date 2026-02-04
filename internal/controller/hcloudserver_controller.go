@@ -30,7 +30,10 @@ const (
 	resizeRequeueDelay = 5 * time.Second
 
 	// conditionTypeReady is the condition type used to indicate resource readiness.
-	conditionTypeReady = "Ready"
+	conditionTypeReady         = "Ready"
+	readyReasonNetworkAttached = "NetworkAttached"
+	readyReasonNetworkMigrated = "NetworkMigrated"
+	readyReasonNetworkDetached = "NetworkDetached"
 )
 
 // HCloudServerReconciler reconciles HCloudServer objects.
@@ -187,8 +190,13 @@ func (r *HCloudServerReconciler) reconcileExistingServer(ctx context.Context, ob
 		return resizeRequeueDelay, r.Status().Update(ctx, obj)
 	}
 
-	if err := r.ensureServerNetworkAttachment(ctx, obj, s); err != nil {
+	networkChanged, err := r.ensureServerNetworkAttachment(ctx, obj, s)
+	if err != nil {
 		return 0, err
+	}
+	if networkChanged {
+		r.applyServerStatus(obj, s)
+		return resizeRequeueDelay, r.Status().Update(ctx, obj)
 	}
 
 	return 0, r.syncStatus(ctx, obj, s)
@@ -198,35 +206,38 @@ func (r *HCloudServerReconciler) ensureServerNetworkAttachment(
 	ctx context.Context,
 	obj *infrav1alpha1.HCloudServer,
 	s *hcloudclient.ServerInfo,
-) error {
+) (bool, error) {
 	if obj.Spec.NetworkRef == nil || obj.Spec.NetworkRef.Name == "" {
 		if obj.Status.AppliedNetworkID != 0 {
 			if err := r.HCloudClient.DetachServerFromNetwork(ctx, s.ID, obj.Status.AppliedNetworkID); err != nil {
-				return fmt.Errorf("detach server %d from previously managed network %d: %w", s.ID, obj.Status.AppliedNetworkID, err)
+				return false, fmt.Errorf("detach server %d from previously managed network %d: %w", s.ID, obj.Status.AppliedNetworkID, err)
 			}
 			updated, err := r.HCloudClient.GetServer(ctx, s.ID)
 			if err != nil {
-				return fmt.Errorf("refresh server after network detach: %w", err)
+				return false, fmt.Errorf("refresh server after network detach: %w", err)
 			}
 			if updated != nil {
 				*s = *updated
 			}
 			obj.Status.AppliedNetworkID = 0
+			r.setCondition(obj, conditionTypeReady, metav1.ConditionTrue, readyReasonNetworkDetached, "Detached server from previously managed private network")
+			return true, nil
 		}
-		return nil
+		return false, nil
 	}
 
 	network := &infrav1alpha1.HCloudNetwork{}
 	if err := r.Get(ctx, client.ObjectKey{Name: obj.Spec.NetworkRef.Name}, network); err != nil {
-		return fmt.Errorf("get referenced HCloudNetwork %q: %w", obj.Spec.NetworkRef.Name, err)
+		return false, fmt.Errorf("get referenced HCloudNetwork %q: %w", obj.Spec.NetworkRef.Name, err)
 	}
 	if network.Status.NetworkID == 0 {
-		return fmt.Errorf("referenced HCloudNetwork %q is not ready (status.networkID is empty)", network.Name)
+		return false, fmt.Errorf("referenced HCloudNetwork %q is not ready (status.networkID is empty)", network.Name)
 	}
 
+	migrated := false
 	if obj.Status.AppliedNetworkID != 0 && obj.Status.AppliedNetworkID != network.Status.NetworkID {
 		if err := r.HCloudClient.DetachServerFromNetwork(ctx, s.ID, obj.Status.AppliedNetworkID); err != nil {
-			return fmt.Errorf(
+			return false, fmt.Errorf(
 				"detach server %d from previously managed network %d: %w",
 				s.ID,
 				obj.Status.AppliedNetworkID,
@@ -235,17 +246,18 @@ func (r *HCloudServerReconciler) ensureServerNetworkAttachment(
 		}
 		updated, err := r.HCloudClient.GetServer(ctx, s.ID)
 		if err != nil {
-			return fmt.Errorf("refresh server after network migration detach: %w", err)
+			return false, fmt.Errorf("refresh server after network migration detach: %w", err)
 		}
 		if updated != nil {
 			*s = *updated
 		}
 		obj.Status.AppliedNetworkID = 0
+		migrated = true
 	}
 
 	if !containsInt64(s.NetworkIDs, network.Status.NetworkID) {
 		if err := r.HCloudClient.AttachServerToNetwork(ctx, s.ID, network.Status.NetworkID); err != nil {
-			return fmt.Errorf(
+			return false, fmt.Errorf(
 				"attach server %d to network %q (%d): %w",
 				s.ID,
 				network.Name,
@@ -255,14 +267,33 @@ func (r *HCloudServerReconciler) ensureServerNetworkAttachment(
 		}
 		updated, err := r.HCloudClient.GetServer(ctx, s.ID)
 		if err != nil {
-			return fmt.Errorf("refresh server after network attach: %w", err)
+			return false, fmt.Errorf("refresh server after network attach: %w", err)
 		}
 		if updated != nil {
 			*s = *updated
 		}
+		if migrated {
+			r.setCondition(
+				obj,
+				conditionTypeReady,
+				metav1.ConditionTrue,
+				readyReasonNetworkMigrated,
+				fmt.Sprintf("Migrated server private network attachment to %q", network.Name),
+			)
+		} else {
+			r.setCondition(
+				obj,
+				conditionTypeReady,
+				metav1.ConditionTrue,
+				readyReasonNetworkAttached,
+				fmt.Sprintf("Attached server to private network %q", network.Name),
+			)
+		}
+		obj.Status.AppliedNetworkID = network.Status.NetworkID
+		return true, nil
 	}
 	obj.Status.AppliedNetworkID = network.Status.NetworkID
-	return nil
+	return false, nil
 }
 
 func (r *HCloudServerReconciler) reconcileServerTypeMismatch(ctx context.Context, obj *infrav1alpha1.HCloudServer, s *hcloudclient.ServerInfo) (time.Duration, error) {
@@ -333,6 +364,9 @@ func (r *HCloudServerReconciler) syncStatus(ctx context.Context, obj *infrav1alp
 
 	if s.ServerType == obj.Spec.ServerType && s.State == "running" {
 		obj.Status.AppliedServerType = obj.Spec.ServerType
+		if hasNetworkLifecycleReadyReason(obj) {
+			return r.Status().Update(ctx, obj)
+		}
 		r.setCondition(obj, conditionTypeReady, metav1.ConditionTrue, "ServerRunning", "Hetzner server is running at desired type")
 		return r.Status().Update(ctx, obj)
 	}
@@ -378,4 +412,17 @@ func containsInt64(items []int64, want int64) bool {
 		}
 	}
 	return false
+}
+
+func hasNetworkLifecycleReadyReason(obj *infrav1alpha1.HCloudServer) bool {
+	cond := meta.FindStatusCondition(obj.Status.Conditions, conditionTypeReady)
+	if cond == nil || cond.Status != metav1.ConditionTrue {
+		return false
+	}
+	switch cond.Reason {
+	case readyReasonNetworkAttached, readyReasonNetworkMigrated, readyReasonNetworkDetached:
+		return true
+	default:
+		return false
+	}
 }
