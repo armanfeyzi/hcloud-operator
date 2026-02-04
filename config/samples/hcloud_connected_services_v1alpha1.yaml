@@ -1,0 +1,82 @@
+#
+# Connected services example:
+# - private network
+# - two servers attached to that network
+# - one shared data volume attached to app server
+# - load balancer targeting both servers by label selector
+#
+# Apply with:
+#   kubectl apply -f config/samples/hcloud_connected_services_v1alpha1.yaml
+#
+---
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudNetwork
+metadata:
+  name: app-network
+spec:
+  ipRange: 10.110.0.0/16
+  networkZones:
+    - eu-central
+  labels:
+    env: demo
+    managed-by: hcloud-operator
+---
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudServer
+metadata:
+  name: app-server
+  labels:
+    demo.hkc.io/lb: app
+spec:
+  serverType: cx23
+  image: ubuntu-22.04
+  location: fsn1
+  networkRef:
+    name: app-network
+  labels:
+    role: app
+    env: demo
+---
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudServer
+metadata:
+  name: worker-server
+  labels:
+    demo.hkc.io/lb: app
+spec:
+  serverType: cx22
+  image: ubuntu-22.04
+  location: fsn1
+  networkRef:
+    name: app-network
+  labels:
+    role: worker
+    env: demo
+---
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudVolume
+metadata:
+  name: app-data
+spec:
+  size: 30
+  format: ext4
+  serverRef:
+    name: app-server
+  labels:
+    env: demo
+    managed-by: hcloud-operator
+---
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudLoadBalancer
+metadata:
+  name: app-public
+spec:
+  loadBalancerType: lb11
+  location: fsn1
+  algorithm: round_robin
+  serverSelector:
+    matchLabels:
+      demo.hkc.io/lb: app
+  labels:
+    env: demo
+    managed-by: hcloud-operator

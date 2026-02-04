@@ -1,0 +1,17 @@
+#
+# Minimal standalone volume example (single resource).
+# This creates a volume without attachment.
+# Apply with:
+#   kubectl apply -f config/samples/hcloud_volume_simple_v1alpha1.yaml
+#
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudVolume
+metadata:
+  name: simple-volume
+spec:
+  size: 20
+  location: fsn1
+  format: ext4
+  labels:
+    env: demo
+    managed-by: hcloud-operator
