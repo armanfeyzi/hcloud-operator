@@ -12,6 +12,7 @@ This project draws heavy inspiration from:
 - **AWS Controllers for Kubernetes (ACK):** The concept of managing cloud-native infrastructure directly through the Kubernetes API.
 - **Crossplane:** The abstraction of infrastructure management within Kubernetes, but without the multi-cloud complexity.
 - **The Kubernetes Operator Pattern:** Leveraging reconciliation loops to maintain desired state.
+- **[hetzner-k3s](https://github.com/vitobotta/hetzner-k3s):** The *shape* of a production-ready k3s cluster on Hetzner (networking, pools, security, bootstrap, Day-2 add-ons). HKIC aims for **parity with that outcome** using CRDs and GitOps so teams can **replace the hetzner-k3s CLI** when they want infrastructure-as-Kubernetes-objects. See `docs/roadmap.md` (milestone: hetzner-k3s parity).
 
 The goal is not to replace massive multi-cloud tools like Terraform, but rather to provide a focused, lightweight, and tightly integrated experience for users who are already heavily invested in the Kubernetes ecosystem and want to provision Hetzner resources (like Servers and Volumes) without leaving `kubectl`.
 
