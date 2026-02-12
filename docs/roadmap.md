@@ -2,11 +2,20 @@
 
 The vision of the **Hetzner Kubernetes Infrastructure Controller (HKIC)** is to provide a comprehensive, Kubernetes-native infrastructure abstraction for Hetzner Cloud.
 
+**Same page — two layers:**
+
+1. **Broad Hetzner Cloud coverage:** HKIC should keep gaining the ability to **create, configure, update, and delete** the Hetzner Cloud resource types people actually use (servers, networks, volumes, load balancers, firewalls, placement/labels, and so on), with users free to adopt **any subset** of controllers.
+2. **Kubernetes on Hetzner as a composition:** If someone wants a **Kubernetes cluster on Hetzner Cloud** comparable to what [hetzner-k3s](https://github.com/vitobotta/hetzner-k3s) provides, they should be able to achieve that **using HKIC’s controllers** (the same primitives, plus bootstrap and Day-2 docs/manifests), not only unrelated one-off VMs.
+
+The milestone below is the **cluster-shaped** slice of (2); Phases 1–3 are the expanding **surface** for (1).
+
 ## Milestone: Parity with [hetzner-k3s](https://github.com/vitobotta/hetzner-k3s)
 
-**Goal:** Reproduce the same *class* of production-ready **k3s** clusters on Hetzner Cloud using HKIC (CRDs + controllers + GitOps), so teams can **replace the [hetzner-k3s](https://github.com/vitobotta/hetzner-k3s) CLI provisioning path** when they want Kubernetes-native infrastructure objects instead of a single-machine bootstrap tool.
+**Goal:** Enable the **full lifecycle** of a Kubernetes cluster on Hetzner Cloud using HKIC — **deploy, run, reconfigure, modify, and delete** — with **coverage of the major Hetzner Cloud components and configs** needed for a production-style stack (comparable to what [hetzner-k3s](https://github.com/vitobotta/hetzner-k3s) provisions). Teams can use HKIC instead of the hetzner-k3s CLI when they want GitOps and Kubernetes-native infra objects.
 
-**Reference:** upstream documents HA masters, worker pools (including autoscaling min/max), private networking, firewalls, load balancing, k3s versioning, and Day-2 components (Hetzner [CCM](https://github.com/hetznercloud/hcloud-cloud-controller-manager), [CSI](https://github.com/hetznercloud/csi-driver), Cluster Autoscaler, System Upgrade Controller, optional CNI choices). HKIC should converge on that *surface area*; implementation may split low-level CRDs from higher-level compositions (see Phase 4).
+**Composable architecture (non-negotiable):** each concern remains a **separate** CRD/reconciler where it makes sense (`HCloudServer`, `HCloudNetwork`, `HCloudFirewall`, …). Users may adopt **only the pieces they need**; “full cluster” is achieved by **combining** resources and optional higher-level recipes (Helm, [kro](https://github.com/kubernetes-sigs/kro), docs), not by hiding everything behind a single mandatory mega-API.
+
+**Reference:** upstream documents HA masters, worker pools (including autoscaling min/max), private networking, firewalls, load balancing, k3s versioning, and Day-2 components (Hetzner [CCM](https://github.com/hetznercloud/hcloud-cloud-controller-manager), [CSI](https://github.com/hetznercloud/csi-driver), Cluster Autoscaler, System Upgrade Controller, optional CNI choices). HKIC should converge on that *surface area* at the Hetzner API layer; cluster-wide automation may be split across low-level CRDs and Phase 4 compositions.
 
 ### Parity-oriented tasks
 

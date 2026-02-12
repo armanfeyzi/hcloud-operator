@@ -2,6 +2,8 @@
 
 HKIC is a Kubernetes-native infrastructure controller that allows you to manage Hetzner Cloud resources directly from your Kubernetes cluster using Custom Resource Definitions (CRDs).
 
+**Scope:** grow a **wide** set of reconcilers so you can create and configure **many** Hetzner Cloud resource kinds—not only one workflow. **Included in that vision:** standing up a **Kubernetes cluster on Hetzner** (k3s-style, similar to [hetzner-k3s](https://github.com/vitobotta/hetzner-k3s)) by **composing** those controllers, when that is what you need.
+
 Instead of relying on external tools like Terraform or the Hetzner CLI, you can define your infrastructure declaratively as Kubernetes YAML objects. The HKIC operator runs inside your cluster, constantly watching these objects, and automatically reconciles your desired state with the actual infrastructure running in Hetzner Cloud.
 
 ## Inspiration and Vision
@@ -12,7 +14,9 @@ This project draws heavy inspiration from:
 - **AWS Controllers for Kubernetes (ACK):** The concept of managing cloud-native infrastructure directly through the Kubernetes API.
 - **Crossplane:** The abstraction of infrastructure management within Kubernetes, but without the multi-cloud complexity.
 - **The Kubernetes Operator Pattern:** Leveraging reconciliation loops to maintain desired state.
-- **[hetzner-k3s](https://github.com/vitobotta/hetzner-k3s):** The *shape* of a production-ready k3s cluster on Hetzner (networking, pools, security, bootstrap, Day-2 add-ons). HKIC aims for **parity with that outcome** using CRDs and GitOps so teams can **replace the hetzner-k3s CLI** when they want infrastructure-as-Kubernetes-objects. See `docs/roadmap.md` (milestone: hetzner-k3s parity).
+- **[hetzner-k3s](https://github.com/vitobotta/hetzner-k3s):** Reference for what a solid **k3s-on-Hetzner** cluster looks like (networking, pools, security, bootstrap, Day-2 add-ons). HKIC aims to cover the **same major Hetzner Cloud components and configs** so you can **deploy, reconfigure, and delete** that class of cluster via CRDs and GitOps—not only ad-hoc VMs.
+
+**How it fits together:** controllers stay **modular** (servers, networks, volumes, load balancers, firewalls, …). You can use one resource type alone or compose them for a full cluster; optional recipes (Helm, kro, samples) stitch the same primitives into an experience similar to `hetzner-k3s create`. See `docs/roadmap.md`.
 
 The goal is not to replace massive multi-cloud tools like Terraform, but rather to provide a focused, lightweight, and tightly integrated experience for users who are already heavily invested in the Kubernetes ecosystem and want to provision Hetzner resources (like Servers and Volumes) without leaving `kubectl`.
 
