@@ -15,7 +15,7 @@ Manages a single Hetzner Cloud virtual server.
 | `location` | string | Yes | Datacenter location (`fsn1`, `nbg1`, `hel1`, `ash`, `hil`) |
 | `labels` | map[string]string | No | Cloud resource labels |
 | `sshKeys` | []string | No | List of SSH key names/IDs to inject at creation |
-| `userData` | string | No | Cloud-init configuration |
+| `userData` | string | No | Cloud-init configuration (applied at **server creation** in Hetzner; see [k3s sample](k3s-on-hcloud.md)) |
 | `networkRef.name` | string | No | Name of target `HCloudNetwork` to attach this server to |
 
 ### Status

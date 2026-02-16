@@ -37,6 +37,8 @@ kubectl apply -f config/samples/hcloud_stack_v1alpha1.yaml
 kubectl get hcs,hcv,hclb
 ```
 
+To try a **single-node k3s** workload cluster (private network + `userData` bootstrap), see [k3s on Hetzner with HKIC](k3s-on-hcloud.md) and `config/samples/k3s_single_node_private_net_v1alpha1.yaml`.
+
 ## Running Tests
 
 Run the unit and envtest-based tests:

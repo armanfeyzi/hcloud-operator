@@ -1,0 +1,35 @@
+# Minimal single-node k3s: one HCloudServer, no HCloudNetwork.
+# Useful for a quick smoke test; production setups should prefer a private network
+# (see k3s_single_node_private_net_v1alpha1.yaml and docs/k3s-on-hcloud.md).
+#
+# Replace REPLACE_WITH_HCLOUD_SSH_KEY_NAME before applying.
+#
+#   kubectl apply -f config/samples/k3s_single_node_public_only_v1alpha1.yaml
+#
+---
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudServer
+metadata:
+  name: k3s-public-only
+  labels:
+    app.kubernetes.io/name: k3s-public-only
+spec:
+  serverType: cx23
+  image: ubuntu-22.04
+  location: fsn1
+  sshKeys:
+    - REPLACE_WITH_HCLOUD_SSH_KEY_NAME
+  labels:
+    app.kubernetes.io/name: k3s-public-only
+  userData: |
+    #cloud-config
+    package_update: true
+    packages:
+      - curl
+    runcmd:
+      - |
+        set -eux
+        PUBIP="$(curl -fs http://169.254.169.254/hetzner/v1/metadata/public-ipv4)"
+        export INSTALL_K3S_CHANNEL=stable
+        export INSTALL_K3S_EXEC="server --tls-san=${PUBIP} --disable traefik"
+        curl -sfL https://get.k3s.io | sh -

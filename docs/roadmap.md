@@ -19,8 +19,9 @@ The milestone below is the **cluster-shaped** slice of (2); Phases 1–3 are the
 
 ### Parity-oriented tasks
 
+- [x] **k3s sample + doc** — [docs/k3s-on-hcloud.md](k3s-on-hcloud.md) and `config/samples/k3s_single_node_*_v1alpha1.yaml` (single-node server bootstrap via `spec.userData`; multi-node / automation TBD)
 - [ ] **`HCloudFirewall`** CRD and reconciler (cluster firewall rules aligned with how hetzner-k3s locks down SSH/API/worker traffic)
-- [ ] **Node bootstrap** — cloud-init (or equivalent) templates to install k3s server/agent roles, wired to `HCloudServer` / network / SSH keys
+- [ ] **Node bootstrap** — extend beyond samples: agent join flow, token handling, optional higher-level automation (still composable)
 - [ ] **Cluster shape abstraction** — either a dedicated “cluster” API (`HCloudK3sCluster`-style) or a documented [kro](https://github.com/kubernetes-sigs/kro) / Helm recipe that maps **masters pool + worker pools + networking + LB** to existing CRDs
 - [ ] **Day-2 manifests** — versioned examples for Hetzner CCM, CSI, Cluster Autoscaler, System Upgrade Controller (as apply/kustomize/Helm), matching what `hetzner-k3s create` installs
 - [ ] **Config mapping doc** — translate a representative `cluster.yaml` from hetzner-k3s into HKIC resources (field-by-field notes, gaps, extensions)

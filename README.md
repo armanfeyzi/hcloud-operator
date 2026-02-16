@@ -164,6 +164,7 @@ kubectl get hcs,hcv,hclb
 - [Architecture](docs/architecture.md)
 - [CRD Reference](docs/crds.md)
 - [Development Guide](docs/development.md)
+- [k3s on Hetzner with HKIC](docs/k3s-on-hcloud.md) — cloud-init sample cluster
 - [Roadmap](docs/roadmap.md)
 - [Contributing](CONTRIBUTING.md)
 
