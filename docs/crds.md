@@ -130,3 +130,62 @@ spec:
     matchLabels:
       app: web
 ```
+
+## `HCloudFirewall`
+Group: `infra.hkc.io/v1alpha1`
+Scope: `Cluster`
+
+Manages a Hetzner Cloud **Firewall** (rules + server / label attachments).
+
+### Spec
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `labels` | map[string]string | No | Labels on the Hetzner firewall resource |
+| `rules` | []HCloudFirewallRule | No | Rule list; reconciled with the API’s *set rules* action (order is not used for drift detection) |
+| `applyTo.labelSelector` | string | No | Hetzner Cloud server label selector (e.g. `env=prod`) |
+| `applyTo.serverRefs` | []LocalObjectReference | No | `HCloudServer` names; `status.serverID` must be set before attachment |
+
+### Rule fields (`HCloudFirewallRule`)
+
+| Field | Type | Description |
+|---|---|---|
+| `direction` | string | `in` or `out` |
+| `protocol` | string | `tcp`, `udp`, `icmp`, `esp`, or `gre` |
+| `port` | string | Optional; e.g. `22` or `8080-8090` |
+| `sourceIPs` | []string | Source CIDRs (e.g. `0.0.0.0/0`, `::/0`) |
+| `destinationIPs` | []string | For outbound rules when used |
+| `description` | string | Optional note in Hetzner |
+
+### Status
+
+| Field | Type | Description |
+|---|---|---|
+| `firewallID` | int64 | Hetzner firewall ID |
+| `conditions` | []Condition | e.g. `Ready=True` |
+
+### Example (SSH + k3s API from listed CIDRs)
+
+```yaml
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudFirewall
+metadata:
+  name: cluster-edge
+spec:
+  labels:
+    role: k3s
+  rules:
+    - direction: in
+      protocol: tcp
+      port: "22"
+      sourceIPs:
+        - 203.0.113.0/24
+    - direction: in
+      protocol: tcp
+      port: "6443"
+      sourceIPs:
+        - 203.0.113.0/24
+  applyTo:
+    serverRefs:
+      - name: my-server
+```

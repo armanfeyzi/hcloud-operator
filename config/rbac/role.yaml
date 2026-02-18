@@ -81,3 +81,55 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudnetworks
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudnetworks/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudnetworks/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudfirewalls
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudfirewalls/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudfirewalls/status
+  verbs:
+  - get
+  - patch
+  - update

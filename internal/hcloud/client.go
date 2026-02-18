@@ -89,6 +89,40 @@ type NetworkCreateOpts struct {
 	ExposeRoutesToVSwitch bool
 }
 
+// FirewallRuleInfo is a portable firewall rule (CIDRs as strings).
+type FirewallRuleInfo struct {
+	Direction      string
+	Protocol       string
+	Port           *string
+	SourceIPs      []string
+	DestinationIPs []string
+	Description    *string
+}
+
+// FirewallApplyResource selects servers or a label selector for firewall attachment.
+type FirewallApplyResource struct {
+	Type     string // "server" or "label_selector"
+	ServerID int64  // when Type=="server"
+	Selector string // when Type=="label_selector"
+}
+
+// FirewallInfo is a minimal view of a Hetzner Cloud firewall.
+type FirewallInfo struct {
+	ID        int64
+	Name      string
+	Labels    map[string]string
+	Rules     []FirewallRuleInfo
+	AppliedTo []FirewallApplyResource
+}
+
+// FirewallCreateOpts holds parameters for creating a firewall.
+type FirewallCreateOpts struct {
+	Name    string
+	Labels  map[string]string
+	Rules   []FirewallRuleInfo
+	ApplyTo []FirewallApplyResource
+}
+
 // Interface defines the Hetzner Cloud operations required by the controller.
 // Using an interface here allows the controller to be tested with a fake client
 // without making real API calls.
@@ -122,6 +156,15 @@ type Interface interface {
 	CreateNetwork(ctx context.Context, opts NetworkCreateOpts) (*NetworkInfo, error)
 	DeleteNetwork(ctx context.Context, id int64) error
 	AddNetworkCloudSubnet(ctx context.Context, networkID int64, zone string) error
+
+	GetFirewall(ctx context.Context, id int64) (*FirewallInfo, error)
+	GetFirewallByName(ctx context.Context, name string) (*FirewallInfo, error)
+	CreateFirewall(ctx context.Context, opts FirewallCreateOpts) (*FirewallInfo, error)
+	DeleteFirewall(ctx context.Context, id int64) error
+	UpdateFirewallLabels(ctx context.Context, id int64, labels map[string]string) error
+	SetFirewallRules(ctx context.Context, id int64, rules []FirewallRuleInfo) error
+	ApplyFirewallResources(ctx context.Context, id int64, resources []FirewallApplyResource) error
+	RemoveFirewallResources(ctx context.Context, id int64, resources []FirewallApplyResource) error
 }
 
 // Client wraps the Hetzner Cloud API client with idempotent helpers.

@@ -20,7 +20,7 @@ The milestone below is the **cluster-shaped** slice of (2); Phases 1–3 are the
 ### Parity-oriented tasks
 
 - [x] **k3s sample + doc** — [docs/k3s-on-hcloud.md](k3s-on-hcloud.md) and `config/samples/k3s_single_node_*_v1alpha1.yaml` (single-node server bootstrap via `spec.userData`; multi-node / automation TBD)
-- [ ] **`HCloudFirewall`** CRD and reconciler (cluster firewall rules aligned with how hetzner-k3s locks down SSH/API/worker traffic)
+- [x] **`HCloudFirewall`** CRD and reconciler (cluster firewall rules; attach via `serverRefs` and/or Hetzner `labelSelector`)
 - [ ] **Node bootstrap** — extend beyond samples: agent join flow, token handling, optional higher-level automation (still composable)
 - [ ] **Cluster shape abstraction** — either a dedicated “cluster” API (`HCloudK3sCluster`-style) or a documented [kro](https://github.com/kubernetes-sigs/kro) / Helm recipe that maps **masters pool + worker pools + networking + LB** to existing CRDs
 - [ ] **Day-2 manifests** — versioned examples for Hetzner CCM, CSI, Cluster Autoscaler, System Upgrade Controller (as apply/kustomize/Helm), matching what `hetzner-k3s create` installs
@@ -47,7 +47,7 @@ The milestone below is the **cluster-shaped** slice of (2); Phases 1–3 are the
 ## Phase 3: Networking & clustering — **In progress**
 - [x] `HCloudNetwork` CRD and reconciler (private networks: `ipRange`, optional `networkZones` for Cloud subnets, labels; adopt-by-name; finalizer cleanup)
 - [x] Attach Cloud Servers to `HCloudNetwork` (`HCloudServer.spec.networkRef`)
-- [ ] `HCloudFirewall` CRD and reconciler
+- [x] `HCloudFirewall` CRD and reconciler
 - [ ] Cloud-init / node bootstrap templates (e.g. k3s join) built on networks + servers
 
 ## Phase 4: GitOps & platform engineering

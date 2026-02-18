@@ -16,6 +16,7 @@ type FakeClient struct {
 	volumes       map[int64]*VolumeInfo
 	loadBalancers map[int64]*LoadBalancerInfo
 	networks      map[int64]*NetworkInfo
+	firewalls     map[int64]*FirewallInfo
 	nextID        int64
 
 	// CreateErr, if non-nil, is returned by every CreateServer call.
@@ -33,6 +34,7 @@ func NewFakeClient() *FakeClient {
 		volumes:       make(map[int64]*VolumeInfo),
 		loadBalancers: make(map[int64]*LoadBalancerInfo),
 		networks:      make(map[int64]*NetworkInfo),
+		firewalls:     make(map[int64]*FirewallInfo),
 		nextID:        1,
 	}
 }
@@ -45,6 +47,7 @@ func (f *FakeClient) Reset() {
 	f.volumes = make(map[int64]*VolumeInfo)
 	f.loadBalancers = make(map[int64]*LoadBalancerInfo)
 	f.networks = make(map[int64]*NetworkInfo)
+	f.firewalls = make(map[int64]*FirewallInfo)
 	f.nextID = 1
 	f.CreateErr = nil
 	f.GetErr = nil
@@ -518,6 +521,183 @@ func (f *FakeClient) DeleteNetwork(ctx context.Context, id int64) error {
 		return f.DeleteErr
 	}
 	delete(f.networks, id)
+	return nil
+}
+
+func cloneFirewallInfo(fw *FirewallInfo) *FirewallInfo {
+	if fw == nil {
+		return nil
+	}
+	cp := *fw
+	cp.Labels = cloneStringMap(fw.Labels)
+	cp.Rules = cloneFirewallRules(fw.Rules)
+	cp.AppliedTo = cloneFirewallApply(fw.AppliedTo)
+	return &cp
+}
+
+func cloneFirewallRules(r []FirewallRuleInfo) []FirewallRuleInfo {
+	if r == nil {
+		return nil
+	}
+	out := make([]FirewallRuleInfo, len(r))
+	for i := range r {
+		out[i] = firewallRuleDeepCopy(&r[i])
+	}
+	return out
+}
+
+func firewallRuleDeepCopy(r *FirewallRuleInfo) FirewallRuleInfo {
+	if r == nil {
+		return FirewallRuleInfo{}
+	}
+	cp := *r
+	if r.Port != nil {
+		p := *r.Port
+		cp.Port = &p
+	}
+	if r.Description != nil {
+		d := *r.Description
+		cp.Description = &d
+	}
+	cp.SourceIPs = append([]string{}, r.SourceIPs...)
+	cp.DestinationIPs = append([]string{}, r.DestinationIPs...)
+	slices.Sort(cp.SourceIPs)
+	slices.Sort(cp.DestinationIPs)
+	return cp
+}
+
+func cloneFirewallApply(a []FirewallApplyResource) []FirewallApplyResource {
+	if a == nil {
+		return nil
+	}
+	cp := make([]FirewallApplyResource, len(a))
+	copy(cp, a)
+	return cp
+}
+
+func (f *FakeClient) GetFirewall(ctx context.Context, id int64) (*FirewallInfo, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.GetErr != nil {
+		return nil, f.GetErr
+	}
+	fw, ok := f.firewalls[id]
+	if !ok {
+		return nil, nil
+	}
+	return cloneFirewallInfo(fw), nil
+}
+
+func (f *FakeClient) GetFirewallByName(ctx context.Context, name string) (*FirewallInfo, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.GetErr != nil {
+		return nil, f.GetErr
+	}
+	for _, fw := range f.firewalls {
+		if fw.Name == name {
+			return cloneFirewallInfo(fw), nil
+		}
+	}
+	return nil, nil
+}
+
+func (f *FakeClient) CreateFirewall(ctx context.Context, opts FirewallCreateOpts) (*FirewallInfo, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.CreateErr != nil {
+		return nil, f.CreateErr
+	}
+	for _, fw := range f.firewalls {
+		if fw.Name == opts.Name {
+			return nil, fmt.Errorf("fake: firewall with name %q already exists", opts.Name)
+		}
+	}
+	id := f.nextID
+	f.nextID++
+	info := &FirewallInfo{
+		ID:        id,
+		Name:      opts.Name,
+		Labels:    cloneStringMap(opts.Labels),
+		Rules:     cloneFirewallRules(opts.Rules),
+		AppliedTo: cloneFirewallApply(opts.ApplyTo),
+	}
+	f.firewalls[id] = info
+	return cloneFirewallInfo(info), nil
+}
+
+func (f *FakeClient) DeleteFirewall(ctx context.Context, id int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.DeleteErr != nil {
+		return f.DeleteErr
+	}
+	delete(f.firewalls, id)
+	return nil
+}
+
+func (f *FakeClient) UpdateFirewallLabels(ctx context.Context, id int64, labels map[string]string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	fw, ok := f.firewalls[id]
+	if !ok {
+		return fmt.Errorf("fake: firewall %d not found", id)
+	}
+	fw.Labels = cloneStringMap(labels)
+	return nil
+}
+
+func (f *FakeClient) SetFirewallRules(ctx context.Context, id int64, rules []FirewallRuleInfo) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	fw, ok := f.firewalls[id]
+	if !ok {
+		return fmt.Errorf("fake: firewall %d not found", id)
+	}
+	fw.Rules = cloneFirewallRules(rules)
+	return nil
+}
+
+func (f *FakeClient) ApplyFirewallResources(ctx context.Context, id int64, resources []FirewallApplyResource) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	fw, ok := f.firewalls[id]
+	if !ok {
+		return fmt.Errorf("fake: firewall %d not found", id)
+	}
+	keys := map[string]struct{}{}
+	for _, a := range fw.AppliedTo {
+		keys[a.Key()] = struct{}{}
+	}
+	for _, r := range resources {
+		if _, exists := keys[r.Key()]; exists {
+			continue
+		}
+		fw.AppliedTo = append(fw.AppliedTo, r)
+		keys[r.Key()] = struct{}{}
+	}
+	return nil
+}
+
+func (f *FakeClient) RemoveFirewallResources(ctx context.Context, id int64, resources []FirewallApplyResource) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	fw, ok := f.firewalls[id]
+	if !ok {
+		return fmt.Errorf("fake: firewall %d not found", id)
+	}
+	remove := map[string]struct{}{}
+	for _, r := range resources {
+		remove[r.Key()] = struct{}{}
+	}
+	filtered := fw.AppliedTo[:0]
+	for _, a := range fw.AppliedTo {
+		if _, drop := remove[a.Key()]; drop {
+			continue
+		}
+		filtered = append(filtered, a)
+	}
+	fw.AppliedTo = filtered
 	return nil
 }
 

@@ -23,7 +23,7 @@ This guide shows how to provision a **single-node k3s** cluster using HKIC primi
 |--------|--------|
 | **`userData`** | Applied by Hetzner **when the server is created**. Changing `spec.userData` on an existing `HCloudServer` does not re-run cloud-init. To change bootstrap, replace the server (new object or delete/recreate). |
 | **Image / location** | `spec.image` and `spec.location` are **immutable** after creation (API validation). |
-| **`HCloudFirewall`** | Not implemented yet in HKIC. Lock down SSH/API in the Hetzner console or add rules out-of-band until the firewall CRD exists. |
+| **`HCloudFirewall`** | Available — see `HCloudFirewall` CRD and `config/samples/hcloud_firewall_v1alpha1.yaml`. Attach by `applyTo.serverRefs` (after `HCloudServer.status.serverID` exists) and/or `applyTo.labelSelector`. |
 | **HA / multi-node** | This sample is **one server**. For multiple nodes you typically create a **server** node first, read the join token from it, then pass that token in **agent** `userData` on further servers (automation left to you or future docs). |
 | **Not hetzner-k3s** | CCM, CSI, Cluster Autoscaler, etc. are **not** installed by this sample—only k3s. See [Roadmap](roadmap.md) for Day-2 parity work. |
 
@@ -100,4 +100,4 @@ Order may delete the server before the network; the controller should detach/del
 
 - Add **multi-node** join flow (server token + agent `userData`).
 - Add **Day-2** manifests (Hetzner CCM, CSI) per [Roadmap](roadmap.md).
-- When **`HCloudFirewall`** lands, reproduce hetzner-k3s-style rules as CRDs.
+- Use **`HCloudFirewall`** for hetzner-k3s-style edge rules (SSH, API) instead of ad-hoc console work.

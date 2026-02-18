@@ -40,6 +40,7 @@ You can combine HKIC with orchestrators like [Kube Resource Orchestrator (kro)](
 - **Networks (`HCloudNetwork`):** Provision private networks and optional per-zone Cloud subnets (`networkZones`).
 - **Volumes (`HCloudVolume`):** Provision block storage and automatically attach it to your servers using Kubernetes native references (`serverRef`).
 - **Load Balancers (`HCloudLoadBalancer`):** Expose selected servers through a public Hetzner Load Balancer using `serverSelector` label matching.
+- **Firewalls (`HCloudFirewall`):** Define Hetzner Cloud firewall rules and attach to servers by `HCloudServer` reference and/or a Hetzner label selector.
 - **Idempotent Operations:** The controller is designed to handle API interruptions safely without creating duplicate infrastructure.
 
 ## Quick Start

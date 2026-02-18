@@ -1,0 +1,35 @@
+# Hetzner Cloud Firewall: inbound SSH + Kubernetes API, attached by server ref.
+#
+# Prerequisites: CRDs installed, operator running, target HCloudServer exists with status.serverID.
+# Replace placeholder CIDRs with your admin IP ranges (avoid 0.0.0.0/0 in production).
+#
+#   kubectl apply -f config/samples/hcloud_firewall_v1alpha1.yaml
+#
+---
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudFirewall
+metadata:
+  name: k3s-edge-access
+spec:
+  labels:
+    app.kubernetes.io/name: k3s-edge-access
+  rules:
+    - direction: in
+      protocol: tcp
+      port: "22"
+      sourceIPs:
+        - 0.0.0.0/0
+        - ::/0
+      description: SSH
+    - direction: in
+      protocol: tcp
+      port: "6443"
+      sourceIPs:
+        - 0.0.0.0/0
+        - ::/0
+      description: Kubernetes API
+  applyTo:
+    serverRefs:
+      - name: k3s-demo-server
+    # Optional: Hetzner Cloud server labels (on the Cloud server object), in addition to serverRefs:
+    # labelSelector: "app.kubernetes.io/name=k3s-demo"
