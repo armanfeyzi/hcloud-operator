@@ -67,25 +67,42 @@ If you skip this step, `kubectl apply` may create `HCloudServer` objects but fai
 Create the operator namespace and store your Hetzner token:
 
 ```bash
-kubectl create namespace hcloud-operator-system
+kubectl create namespace hcloud-operator-system --dry-run=client -o yaml | kubectl apply -f -
 kubectl create secret generic hcloud-operator-secret \
   -n hcloud-operator-system \
-  --from-literal=HCLOUD_TOKEN=your-api-token
+  --from-literal=token=your-api-token
 ```
 
-Then install the bundled manifests from your checkout (builds the same layout as the release workflow):
+The Deployment expects the key **`token`** (it maps to the `HCLOUD_TOKEN` environment variable inside the container).
+
+**Option A — released install (recommended, matches CI):** every Git tag build publishes `install.yaml` with the image set to `ghcr.io/<repo>:<tag>`.
 
 ```bash
-kubectl apply -k config/default/
+export VERSION=v0.6.0   # or use latest: see GitHub Releases
+kubectl apply -f "https://github.com/armanfeyzi/hcloud-operator/releases/download/${VERSION}/install.yaml"
+# or: make deploy-release VERSION=v0.6.0
 ```
 
-When you publish a GitHub release, the workflow attaches `install.yaml`. You can then use:
+**Option B — from a git clone** (local dev / custom `IMG`):
+
+```bash
+# Same secret as above, then either local kustomize (localhost image) or a published image:
+make deploy-img IMG=ghcr.io/armanfeyzi/hcloud-operator:v0.6.0
+# or: kubectl apply -k config/default/   # after docker build + kind load, or with IMG substitution
+```
+
+**Option C — latest release URL**
 
 ```bash
 kubectl apply -f https://github.com/armanfeyzi/hcloud-operator/releases/latest/download/install.yaml
 ```
 
-If that URL returns 404, no release exists yet—use `kubectl apply -k config/default/` from a clone instead.
+If that URL returns 404, no release exists yet—build from a clone or run `make run` locally instead.
+
+**Troubleshooting — pod `CreateContainerConfigError` / `couldn't find key token`:** the Secret must use **`token`**, not `HCLOUD_TOKEN`. Fix with:
+`kubectl create secret generic hcloud-operator-secret -n hcloud-operator-system --from-literal=token="$HCLOUD_TOKEN" --dry-run=client -o yaml | kubectl apply -f -`
+
+Releases **before this repo fix** shipped `install.yaml` built from a CRD kustomization that did not yet list `HCloudFirewall`; if `kubectl api-resources | grep hcloudfirewalls` is empty after applying a release, apply the firewall CRD from a checkout (`kubectl apply -f config/crd/bases/infra.hkc.io_hcloudfirewalls.yaml`) or upgrade to a newer tag once published.
 
 ### 4. Local Development Install
 If you want to run the operator locally on your machine against your cluster:

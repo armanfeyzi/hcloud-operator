@@ -31,5 +31,8 @@ jobs:
       - name: Verify kustomize build (install manifest)
         run: kubectl kustomize config/default/ >/dev/null
 
+      - name: Verify bundled CRDs include firewall
+        run: kubectl kustomize config/default/ | grep -q 'name: hcloudfirewalls.infra.hkc.io'
+
       - name: Run tests
         run: make test

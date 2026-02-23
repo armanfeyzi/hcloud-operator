@@ -9,6 +9,10 @@ permissions:
   contents: write
   packages: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   release:
     name: Build and Release
@@ -40,15 +44,22 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Generate installation manifest
         run: |
-          # Replace the image tag in the deployment manifest
+          # Same pattern as local checkout: point kustomize image → GHCR tag (${{ github.ref_name }} == vX.Y.Z)
           cd config/manager
           kustomize edit set image localhost/hcloud-operator:dev=ghcr.io/${{ github.repository }}:${{ github.ref_name }}
           cd ../..
-          # Build the final install.yaml
           kubectl kustomize config/default/ > install.yaml
+
+      - name: Verify install manifest
+        run: |
+          grep -q "image: ghcr.io/${{ github.repository }}:${{ github.ref_name }}" install.yaml
+          grep -q "kind: Deployment" install.yaml
+          grep -q "hcloud-operator-system" install.yaml
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

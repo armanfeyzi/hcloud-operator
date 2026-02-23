@@ -3,8 +3,13 @@
 # Variables
 # ──────────────────────────────────────────────────────────────────────────────
 
-# Image name — override with: make docker-build IMG=myregistry/hcloud-operator:v0.1.0
-IMG ?= hcloud-operator:dev
+# Container image for docker-build / deploy-img (override when deploying a release), e.g.:
+#   ghcr.io/armanfeyzi/hcloud-operator:v0.6.0
+IMG ?= localhost/hcloud-operator:dev
+
+# Released install manifest (GitHub Releases publishes install.yaml per tag).
+VERSION ?= v0.6.0
+RELEASE_INSTALL_URL ?= https://github.com/armanfeyzi/hcloud-operator/releases/download/$(VERSION)/install.yaml
 
 # Go settings
 GOFLAGS     ?=
@@ -98,11 +103,21 @@ uninstall: manifests ## Remove CRDs from the cluster
 	kubectl delete -f config/crd/bases/ --ignore-not-found
 
 .PHONY: deploy
-deploy: manifests ## Deploy the operator to the cluster (requires IMG to be set and pushed)
+deploy: manifests ## Deploy using kustomize in config/default/ (uses deployment image: localhost/... — build/load locally or use deploy-img / deploy-release)
 	kubectl apply -k config/default/
 
+# Deploy a published GHCR image without editing repo files (substitutes image in rendered YAML).
+.PHONY: deploy-img
+deploy-img: manifests ## Deploy operator with IMG set (e.g. IMG=ghcr.io/armanfeyzi/hcloud-operator:v0.6.0)
+	@test "$(IMG)" != "localhost/hcloud-operator:dev" || (echo "Set IMG to a pushed image, e.g. IMG=ghcr.io/<owner>/hcloud-operator:v0.6.0" >&2; false)
+	kubectl kustomize config/default | sed 's|localhost/hcloud-operator:dev|$(IMG)|g' | kubectl apply -f -
+
+.PHONY: deploy-release
+deploy-release: ## Apply official install.yaml from GitHub Releases (set VERSION=v0.6.0)
+	kubectl apply -f "$(RELEASE_INSTALL_URL)"
+
 .PHONY: undeploy
-undeploy: ## Remove the operator from the cluster
+undeploy: ## Tear down everything in config/default/ (includes CRDs — destructive for HKIC resources)
 	kubectl delete -k config/default/ --ignore-not-found
 
 # ──────────────────────────────────────────────────────────────────────────────
