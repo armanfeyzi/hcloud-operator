@@ -55,9 +55,33 @@ Manages a single Hetzner Cloud volume and optional attachment to a server.
 |---|---|---|---|
 | `size` | int | Yes | Size in GB (10-10240) |
 | `location` | string | Conditionally | Required when `serverRef` is not set |
-| `serverRef.name` | string | No | Name of target `HCloudServer` to attach |
+| `serverRef.name` | string | No | Name of target `HCloudServer` to attach (cluster-scoped reference by name) |
 | `format` | string | No | Filesystem type to create |
 | `labels` | map[string]string | No | Cloud resource labels |
+
+### Status
+
+| Field | Type | Description |
+|---|---|---|
+| `volumeID` | int64 | Hetzner Cloud volume ID |
+| `state` | string | Current state (e.g. `creating`, `available`) |
+| `attachedServerID` | int64 | Hetzner server ID this volume is currently attached to |
+| `linuxDevice` | string | Linux device path exposed by Hetzner (for attached volumes) |
+| `conditions` | []Condition | Status conditions (e.g. `Ready=True`) |
+
+### Example
+
+```yaml
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudVolume
+metadata:
+  name: app-data
+spec:
+  size: 30
+  format: ext4
+  serverRef:
+    name: app-server
+```
 
 ## `HCloudNetwork`
 Group: `infra.hkc.io/v1alpha1`

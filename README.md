@@ -60,7 +60,7 @@ make install
 kubectl apply -f config/crd/bases/
 ```
 
-If you skip this step, `kubectl apply` may create `HCloudServer` objects but fail on `HCloudVolume` / `HCloudLoadBalancer` / `HCloudNetwork` with “resource mapping not found”.
+If you skip this step, `kubectl apply` may create `HCloudServer` objects but fail on `HCloudVolume` / `HCloudLoadBalancer` / `HCloudNetwork` / `HCloudFirewall` with “resource mapping not found”.
 
 ### 3. Production Installation (operator in-cluster)
 

@@ -10,12 +10,13 @@ Hetzner Kubernetes Infrastructure Controller (HKIC) is a Kubernetes-native opera
 1. **Custom Resource Definitions (CRDs)**
    - The API layer defined in Kubernetes.
    - Example: `HCloudServer` defines the desired state of a Hetzner Cloud VM.
-   - Multiple CRDs (`HCloudNetwork`, `HCloudVolume`, …) compose into larger systems; none are mandatory unless you need that capability.
+   - Current surface includes `HCloudServer`, `HCloudVolume`, `HCloudLoadBalancer`, `HCloudNetwork`, and `HCloudFirewall`.
+   - Multiple CRDs compose into larger systems; none are mandatory unless you need that capability.
 
 2. **Controller (Reconciler)**
    - Runs as a pod in the cluster.
    - Each major resource kind has its own reconciler (loosely coupled).
-   - Watches for changes to the CRDs it owns and compares desired state against Hetzner Cloud.
+   - Watches for changes to the CRDs it owns, compares desired state against Hetzner Cloud, and updates status conditions/observed IDs.
 
 3. **Hetzner Cloud Client Wrapper**
    - Thin wrapper around the official `hcloud-go` SDK.
