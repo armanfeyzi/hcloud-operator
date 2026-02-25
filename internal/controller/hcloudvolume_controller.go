@@ -12,18 +12,22 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrav1alpha1 "github.com/armanfeyzi/hcloud-operator/api/v1alpha1"
 	hcloudclient "github.com/armanfeyzi/hcloud-operator/internal/hcloud"
 )
 
 const hcloudVolumeFinalizer = "infra.hkc.io/volume-finalizer"
+const hcloudVolumeByServerRefNameField = "spec.serverRef.name"
 
 // HCloudVolumeReconciler reconciles HCloudVolume objects.
 // +kubebuilder:rbac:groups=infra.hkc.io,resources=hcloudvolumes,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=infra.hkc.io,resources=hcloudvolumes/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=infra.hkc.io,resources=hcloudvolumes/finalizers,verbs=update
+// +kubebuilder:rbac:groups=infra.hkc.io,resources=hcloudservers,verbs=get;list;watch
 type HCloudVolumeReconciler struct {
 	client.Client
 	Scheme       *runtime.Scheme
@@ -31,9 +35,46 @@ type HCloudVolumeReconciler struct {
 }
 
 func (r *HCloudVolumeReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &infrav1alpha1.HCloudVolume{}, hcloudVolumeByServerRefNameField, func(rawObj client.Object) []string {
+		vol, ok := rawObj.(*infrav1alpha1.HCloudVolume)
+		if !ok || vol.Spec.ServerRef == nil || vol.Spec.ServerRef.Name == "" {
+			return nil
+		}
+		return []string{vol.Spec.ServerRef.Name}
+	}); err != nil {
+		return fmt.Errorf("index HCloudVolume by serverRef name: %w", err)
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrav1alpha1.HCloudVolume{}).
+		Watches(
+			&infrav1alpha1.HCloudServer{},
+			handler.EnqueueRequestsFromMapFunc(r.mapServerToVolumes),
+		).
 		Complete(r)
+}
+
+func (r *HCloudVolumeReconciler) mapServerToVolumes(ctx context.Context, obj client.Object) []reconcile.Request {
+	server, ok := obj.(*infrav1alpha1.HCloudServer)
+	if !ok {
+		return nil
+	}
+
+	var volumes infrav1alpha1.HCloudVolumeList
+	if err := r.List(ctx, &volumes, client.MatchingFields{hcloudVolumeByServerRefNameField: server.Name}); err != nil {
+		return nil
+	}
+
+	requests := make([]reconcile.Request, 0, len(volumes.Items))
+	for i := range volumes.Items {
+		requests = append(requests, reconcile.Request{
+			NamespacedName: types.NamespacedName{
+				Namespace: volumes.Items[i].Namespace,
+				Name:      volumes.Items[i].Name,
+			},
+		})
+	}
+	return requests
 }
 
 func (r *HCloudVolumeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {

@@ -103,5 +103,34 @@ var _ = Describe("HCloudVolumeReconciler", func() {
 				return v.Status.AttachedServerID
 			}, waitTimeout, pollInterval).Should(Equal(serverID))
 		})
+
+		It("reattempts attachment promptly when referenced server becomes ready", func() {
+			serverName := fmt.Sprintf("test-server-delayed-%d", time.Now().UnixNano())
+
+			vol := newVolume(volName, 20, &serverName)
+			Expect(k8sClient.Create(ctx, vol)).To(Succeed())
+
+			Consistently(func() int64 {
+				v, _ := fetchVolume(volName)()
+				if v == nil {
+					return -1
+				}
+				return v.Status.AttachedServerID
+			}, 500*time.Millisecond, pollInterval).Should(BeZero())
+
+			srv := &infrav1alpha1.HCloudServer{
+				ObjectMeta: metav1.ObjectMeta{Name: serverName, Namespace: "default"},
+				Spec:       infrav1alpha1.HCloudServerSpec{ServerType: "cx21", Image: "ubuntu-22.04", Location: "fsn1"},
+			}
+			Expect(k8sClient.Create(ctx, srv)).To(Succeed())
+
+			Eventually(func() int64 {
+				v, _ := fetchVolume(volName)()
+				if v == nil {
+					return 0
+				}
+				return v.Status.AttachedServerID
+			}, waitTimeout, pollInterval).Should(BeNumerically(">", 0))
+		})
 	})
 })
