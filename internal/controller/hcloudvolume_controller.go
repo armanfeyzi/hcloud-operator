@@ -9,6 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -124,7 +125,7 @@ func (r *HCloudVolumeReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			if apierrors.IsNotFound(err) {
 				log.Info("Waiting for target server to be created", "server", volume.Spec.ServerRef.Name)
 				r.setCondition(volume, conditionTypeReady, metav1.ConditionFalse, "ServerPending", "Target server not found")
-				_ = r.Status().Update(ctx, volume)
+				_ = r.updateVolumeStatusWithRetry(ctx, volume)
 				return ctrl.Result{RequeueAfter: requeueDelay}, nil
 			}
 			return ctrl.Result{}, fmt.Errorf("get target server: %w", err)
@@ -133,7 +134,7 @@ func (r *HCloudVolumeReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		if serverObj.Status.ServerID == 0 {
 			log.Info("Waiting for target server to be provisioned", "server", volume.Spec.ServerRef.Name)
 			r.setCondition(volume, conditionTypeReady, metav1.ConditionFalse, "ServerPending", "Target server not yet provisioned in Hetzner")
-			_ = r.Status().Update(ctx, volume)
+			_ = r.updateVolumeStatusWithRetry(ctx, volume)
 			return ctrl.Result{RequeueAfter: requeueDelay}, nil
 		}
 
@@ -143,7 +144,7 @@ func (r *HCloudVolumeReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	// ── 4. Reconcile Hetzner Volume ──────────────────────────────────────────
 	if err := r.reconcileHCloudVolume(ctx, volume, targetServerID); err != nil {
 		r.setCondition(volume, conditionTypeReady, metav1.ConditionFalse, "ReconcileError", err.Error())
-		_ = r.Status().Update(ctx, volume)
+		_ = r.updateVolumeStatusWithRetry(ctx, volume)
 		return ctrl.Result{}, err
 	}
 
@@ -218,7 +219,7 @@ func (r *HCloudVolumeReconciler) reconcileHCloudVolume(ctx context.Context, obj 
 	}
 	r.setCondition(obj, conditionTypeReady, metav1.ConditionTrue, "VolumeReady", "Volume is provisioned and attached")
 
-	return r.Status().Update(ctx, obj)
+	return r.updateVolumeStatusWithRetry(ctx, obj)
 }
 
 func (r *HCloudVolumeReconciler) setCondition(
@@ -233,5 +234,19 @@ func (r *HCloudVolumeReconciler) setCondition(
 		Reason:             reason,
 		Message:            message,
 		LastTransitionTime: metav1.Now(),
+	})
+}
+
+func (r *HCloudVolumeReconciler) updateVolumeStatusWithRetry(ctx context.Context, obj *infrav1alpha1.HCloudVolume) error {
+	key := types.NamespacedName{Name: obj.Name, Namespace: obj.Namespace}
+	desiredStatus := obj.Status.DeepCopy()
+
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		current := &infrav1alpha1.HCloudVolume{}
+		if err := r.Get(ctx, key, current); err != nil {
+			return err
+		}
+		current.Status = *desiredStatus.DeepCopy()
+		return r.Status().Update(ctx, current)
 	})
 }

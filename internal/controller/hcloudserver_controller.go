@@ -9,6 +9,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -96,7 +98,7 @@ func (r *HCloudServerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	requeueAfter, err := r.reconcileHCloudServer(ctx, server)
 	if err != nil {
 		r.setCondition(server, conditionTypeReady, metav1.ConditionFalse, "ReconcileError", err.Error())
-		_ = r.Status().Update(ctx, server)
+		_ = r.updateServerStatusWithRetry(ctx, server)
 		return ctrl.Result{}, err
 	}
 
@@ -163,7 +165,7 @@ func (r *HCloudServerReconciler) reconcileHCloudServer(ctx context.Context, obj 
 	}
 	r.setCondition(obj, conditionTypeReady, metav1.ConditionTrue, "ServerCreated", "Hetzner server created successfully")
 
-	return 0, r.Status().Update(ctx, obj)
+	return 0, r.updateServerStatusWithRetry(ctx, obj)
 }
 
 func (r *HCloudServerReconciler) reconcileExistingServer(ctx context.Context, obj *infrav1alpha1.HCloudServer, s *hcloudclient.ServerInfo) (time.Duration, error) {
@@ -187,7 +189,7 @@ func (r *HCloudServerReconciler) reconcileExistingServer(ctx context.Context, ob
 		}
 		r.applyServerStatus(obj, s2)
 		r.setCondition(obj, conditionTypeReady, metav1.ConditionFalse, "PoweringOn", "Powered on server after type change; waiting for running state")
-		return resizeRequeueDelay, r.Status().Update(ctx, obj)
+		return resizeRequeueDelay, r.updateServerStatusWithRetry(ctx, obj)
 	}
 
 	networkChanged, err := r.ensureServerNetworkAttachment(ctx, obj, s)
@@ -196,7 +198,7 @@ func (r *HCloudServerReconciler) reconcileExistingServer(ctx context.Context, ob
 	}
 	if networkChanged {
 		r.applyServerStatus(obj, s)
-		return resizeRequeueDelay, r.Status().Update(ctx, obj)
+		return resizeRequeueDelay, r.updateServerStatusWithRetry(ctx, obj)
 	}
 
 	return 0, r.syncStatus(ctx, obj, s)
@@ -303,7 +305,7 @@ func (r *HCloudServerReconciler) reconcileServerTypeMismatch(ctx context.Context
 	case "initializing":
 		r.applyServerStatus(obj, s)
 		r.setCondition(obj, conditionTypeReady, metav1.ConditionFalse, "Resizing", "Server is initializing; waiting before changing type")
-		return resizeRequeueDelay, r.Status().Update(ctx, obj)
+		return resizeRequeueDelay, r.updateServerStatusWithRetry(ctx, obj)
 
 	case "running":
 		if err := r.HCloudClient.PowerOffServer(ctx, s.ID); err != nil {
@@ -315,12 +317,12 @@ func (r *HCloudServerReconciler) reconcileServerTypeMismatch(ctx context.Context
 		}
 		r.applyServerStatus(obj, s2)
 		r.setCondition(obj, conditionTypeReady, metav1.ConditionFalse, "Resizing", "Powered off server to change type")
-		return resizeRequeueDelay, r.Status().Update(ctx, obj)
+		return resizeRequeueDelay, r.updateServerStatusWithRetry(ctx, obj)
 
 	case "stopping", "migrating", "rebuilding":
 		r.applyServerStatus(obj, s)
 		r.setCondition(obj, conditionTypeReady, metav1.ConditionFalse, "Resizing", fmt.Sprintf("Waiting for server state %q to finish before changing type", s.State))
-		return resizeRequeueDelay, r.Status().Update(ctx, obj)
+		return resizeRequeueDelay, r.updateServerStatusWithRetry(ctx, obj)
 
 	case "off":
 		if err := r.HCloudClient.ChangeServerType(ctx, s.ID, desired, false); err != nil {
@@ -332,12 +334,12 @@ func (r *HCloudServerReconciler) reconcileServerTypeMismatch(ctx context.Context
 		}
 		r.applyServerStatus(obj, s2)
 		r.setCondition(obj, conditionTypeReady, metav1.ConditionFalse, "Resizing", "Changed server type; will power on when disk and type have converged")
-		return resizeRequeueDelay, r.Status().Update(ctx, obj)
+		return resizeRequeueDelay, r.updateServerStatusWithRetry(ctx, obj)
 
 	case "starting":
 		r.applyServerStatus(obj, s)
 		r.setCondition(obj, conditionTypeReady, metav1.ConditionFalse, "Resizing", "Server is starting; waiting before continuing type change")
-		return resizeRequeueDelay, r.Status().Update(ctx, obj)
+		return resizeRequeueDelay, r.updateServerStatusWithRetry(ctx, obj)
 
 	case "deleting":
 		return 0, fmt.Errorf("server %d is deleting; cannot change type", s.ID)
@@ -365,19 +367,19 @@ func (r *HCloudServerReconciler) syncStatus(ctx context.Context, obj *infrav1alp
 	if s.ServerType == obj.Spec.ServerType && s.State == "running" {
 		obj.Status.AppliedServerType = obj.Spec.ServerType
 		if hasNetworkLifecycleReadyReason(obj) {
-			return r.Status().Update(ctx, obj)
+			return r.updateServerStatusWithRetry(ctx, obj)
 		}
 		r.setCondition(obj, conditionTypeReady, metav1.ConditionTrue, "ServerRunning", "Hetzner server is running at desired type")
-		return r.Status().Update(ctx, obj)
+		return r.updateServerStatusWithRetry(ctx, obj)
 	}
 
 	if s.State == "running" && s.ServerType != "" && s.ServerType != obj.Spec.ServerType {
 		r.setCondition(obj, conditionTypeReady, metav1.ConditionFalse, "ResizePending", "Server is running but type does not match spec")
-		return r.Status().Update(ctx, obj)
+		return r.updateServerStatusWithRetry(ctx, obj)
 	}
 
 	r.setCondition(obj, conditionTypeReady, metav1.ConditionFalse, "ServerNotReady", fmt.Sprintf("Hetzner server state is %q", s.State))
-	return r.Status().Update(ctx, obj)
+	return r.updateServerStatusWithRetry(ctx, obj)
 }
 
 // deleteHCloudServer removes the Hetzner Cloud server for this resource.
@@ -425,4 +427,18 @@ func hasNetworkLifecycleReadyReason(obj *infrav1alpha1.HCloudServer) bool {
 	default:
 		return false
 	}
+}
+
+func (r *HCloudServerReconciler) updateServerStatusWithRetry(ctx context.Context, obj *infrav1alpha1.HCloudServer) error {
+	key := types.NamespacedName{Name: obj.Name, Namespace: obj.Namespace}
+	desiredStatus := obj.Status.DeepCopy()
+
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		current := &infrav1alpha1.HCloudServer{}
+		if err := r.Get(ctx, key, current); err != nil {
+			return err
+		}
+		current.Status = *desiredStatus.DeepCopy()
+		return r.Status().Update(ctx, current)
+	})
 }
