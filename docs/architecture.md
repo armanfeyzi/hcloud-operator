@@ -17,6 +17,7 @@ Hetzner Kubernetes Infrastructure Controller (HKIC) is a Kubernetes-native opera
    - Runs as a pod in the cluster.
    - Each major resource kind has its own reconciler (loosely coupled).
    - Watches for changes to the CRDs it owns, compares desired state against Hetzner Cloud, and updates status conditions/observed IDs.
+   - Status writes use retry-on-conflict behavior to handle concurrent reconciles without noisy `object has been modified` failures.
 
 3. **Hetzner Cloud Client Wrapper**
    - Thin wrapper around the official `hcloud-go` SDK.

@@ -40,8 +40,8 @@ The milestone below is the **cluster-shaped** slice of (2); Phases 1–3 are the
 - [x] Volume attach / detach via `serverRef` and drift correction
 - [x] `HCloudLoadBalancer` CRD with `serverSelector` and target sync
 - [x] Load balancer reconciler watches `HCloudServer` so label / status changes re-sync targets without waiting for periodic requeue
-- [ ] **`Watches` on `HCloudServer` from `HCloudVolume`** — re-attach as soon as `status.serverID` appears (today: volume periodic requeue)
-- [ ] **Conflict-safe status updates** — reduce `object has been modified` noise (`Patch` / retry on conflict) for hot paths
+- [x] **`Watches` on `HCloudServer` from `HCloudVolume`** — re-attach as soon as `status.serverID` appears (volume now requeues promptly on server changes)
+- [x] **Conflict-safe status updates** — reduced `object has been modified` noise using retry-on-conflict for controller status writes
 - [ ] **Observability** — Kubernetes `Events`, Prometheus metrics, richer conditions
 
 ## Phase 3: Networking & clustering — **In progress**
