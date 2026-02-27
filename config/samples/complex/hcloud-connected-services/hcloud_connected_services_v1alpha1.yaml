@@ -6,7 +6,7 @@
 # - load balancer targeting both servers by label selector
 #
 # Apply with:
-#   kubectl apply -f config/samples/hcloud_connected_services_v1alpha1.yaml
+#   kubectl apply -f config/samples/complex/hcloud-connected-services/hcloud_connected_services_v1alpha1.yaml
 #
 ---
 apiVersion: infra.hkc.io/v1alpha1

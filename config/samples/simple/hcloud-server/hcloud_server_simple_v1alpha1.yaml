@@ -1,7 +1,7 @@
 #
 # Minimal server example (single resource).
 # Apply with:
-#   kubectl apply -f config/samples/hcloud_server_simple_v1alpha1.yaml
+#   kubectl apply -f config/samples/simple/hcloud-server/hcloud_server_simple_v1alpha1.yaml
 #
 apiVersion: infra.hkc.io/v1alpha1
 kind: HCloudServer

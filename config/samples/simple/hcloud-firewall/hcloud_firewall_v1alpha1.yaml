@@ -3,7 +3,7 @@
 # Prerequisites: CRDs installed, operator running, target HCloudServer exists with status.serverID.
 # Replace placeholder CIDRs with your admin IP ranges (avoid 0.0.0.0/0 in production).
 #
-#   kubectl apply -f config/samples/hcloud_firewall_v1alpha1.yaml
+#   kubectl apply -f config/samples/simple/hcloud-firewall/hcloud_firewall_v1alpha1.yaml
 #
 ---
 apiVersion: infra.hkc.io/v1alpha1

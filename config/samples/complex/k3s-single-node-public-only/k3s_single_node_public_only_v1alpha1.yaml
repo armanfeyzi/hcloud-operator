@@ -4,7 +4,7 @@
 #
 # Replace REPLACE_WITH_HCLOUD_SSH_KEY_NAME before applying.
 #
-#   kubectl apply -f config/samples/k3s_single_node_public_only_v1alpha1.yaml
+#   kubectl apply -f config/samples/complex/k3s-single-node-public-only/k3s_single_node_public_only_v1alpha1.yaml
 #
 ---
 apiVersion: infra.hkc.io/v1alpha1

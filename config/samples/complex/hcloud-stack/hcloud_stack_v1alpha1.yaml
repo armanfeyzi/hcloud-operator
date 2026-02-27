@@ -7,7 +7,7 @@
 #   # or: kubectl apply -f config/crd/bases/
 #
 # Then apply this file (with the operator running, or after in-cluster install):
-#   kubectl apply -f config/samples/hcloud_stack_v1alpha1.yaml
+#   kubectl apply -f config/samples/complex/hcloud-stack/hcloud_stack_v1alpha1.yaml
 #
 # The load balancer gets a public IPv4 in status (check: kubectl get hclb -o wide).
 # Hetzner Load Balancers require at least one service (listen port → target port).

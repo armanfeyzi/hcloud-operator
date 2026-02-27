@@ -13,7 +13,7 @@
 #   - Adjust serverType, location, or network zones if needed.
 #
 # Apply:
-#   kubectl apply -f config/samples/k3s_single_node_private_net_v1alpha1.yaml
+#   kubectl apply -f config/samples/complex/k3s-single-node-private-net/k3s_single_node_private_net_v1alpha1.yaml
 #
 ---
 apiVersion: infra.hkc.io/v1alpha1

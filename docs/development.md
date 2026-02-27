@@ -33,11 +33,11 @@ If `kubectl apply` reports **no matches for kind "HCloudVolume"** or **"HCloudLo
 In a separate terminal, try applying the demo stack (server, attached volume, load balancer):
 
 ```bash
-kubectl apply -f config/samples/hcloud_stack_v1alpha1.yaml
+kubectl apply -f config/samples/complex/hcloud-stack/hcloud_stack_v1alpha1.yaml
 kubectl get hcs,hcv,hclb
 ```
 
-To try a **single-node k3s** workload cluster (private network + `userData` bootstrap), see [k3s on Hetzner with HKIC](k3s-on-hcloud.md) and `config/samples/k3s_single_node_private_net_v1alpha1.yaml`.
+To try a **single-node k3s** workload cluster (private network + `userData` bootstrap), see [k3s on Hetzner with HKIC](k3s-on-hcloud.md) and `config/samples/complex/k3s-single-node-private-net/k3s_single_node_private_net_v1alpha1.yaml`.
 
 ## Running Tests
 

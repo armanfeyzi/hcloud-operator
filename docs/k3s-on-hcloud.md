@@ -23,7 +23,7 @@ This guide shows how to provision a **single-node k3s** cluster using HKIC primi
 |--------|--------|
 | **`userData`** | Applied by Hetzner **when the server is created**. Changing `spec.userData` on an existing `HCloudServer` does not re-run cloud-init. To change bootstrap, replace the server (new object or delete/recreate). |
 | **Image / location** | `spec.image` and `spec.location` are **immutable** after creation (API validation). |
-| **`HCloudFirewall`** | Available — see `HCloudFirewall` CRD and `config/samples/hcloud_firewall_v1alpha1.yaml`. Attach by `applyTo.serverRefs` (after `HCloudServer.status.serverID` exists) and/or `applyTo.labelSelector`. |
+| **`HCloudFirewall`** | Available — see `HCloudFirewall` CRD and `config/samples/simple/hcloud-firewall/hcloud_firewall_v1alpha1.yaml`. Attach by `applyTo.serverRefs` (after `HCloudServer.status.serverID` exists) and/or `applyTo.labelSelector`. |
 | **HA / multi-node** | This sample is **one server**. For multiple nodes you typically create a **server** node first, read the join token from it, then pass that token in **agent** `userData` on further servers (automation left to you or future docs). |
 | **Not hetzner-k3s** | CCM, CSI, Cluster Autoscaler, etc. are **not** installed by this sample—only k3s. See [Roadmap](roadmap.md) for Day-2 parity work. |
 
@@ -32,7 +32,7 @@ This guide shows how to provision a **single-node k3s** cluster using HKIC primi
 1. **Copy the sample** and set your SSH key name and sizes/locations as needed:
 
    ```bash
-   cp config/samples/k3s_single_node_private_net_v1alpha1.yaml /tmp/k3s-node.yaml
+   cp config/samples/complex/k3s-single-node-private-net/k3s_single_node_private_net_v1alpha1.yaml /tmp/k3s-node.yaml
    # Edit: spec.sshKeys on the HCloudServer
    ```
 
@@ -93,8 +93,8 @@ Order may delete the server before the network; the controller should detach/del
 
 | File | Purpose |
 |------|---------|
-| `config/samples/k3s_single_node_private_net_v1alpha1.yaml` | Private network + single k3s server (recommended default). |
-| `config/samples/k3s_single_node_public_only_v1alpha1.yaml` | Single server, **no** `HCloudNetwork`—minimal smoke test (Flannel over public/default routing). |
+| `config/samples/complex/k3s-single-node-private-net/k3s_single_node_private_net_v1alpha1.yaml` | Private network + single k3s server (recommended default). |
+| `config/samples/complex/k3s-single-node-public-only/k3s_single_node_public_only_v1alpha1.yaml` | Single server, **no** `HCloudNetwork`—minimal smoke test (Flannel over public/default routing). |
 
 ## Next steps
 

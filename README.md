@@ -170,7 +170,7 @@ Apply it to your cluster:
 kubectl apply -f infra.yaml
 ```
 
-A ready-to-apply version of this pattern (server + volume + load balancer) lives at `config/samples/hcloud_stack_v1alpha1.yaml`.
+A ready-to-apply version of this pattern (server + volume + load balancer) lives at `config/samples/complex/hcloud-stack/hcloud_stack_v1alpha1.yaml`.
 
 Check the status to see the assigned IP addresses, load balancer front-end, and mount paths:
 ```bash
