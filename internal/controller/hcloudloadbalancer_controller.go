@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -89,13 +90,13 @@ func (r *HCloudLoadBalancerReconciler) Reconcile(ctx context.Context, req ctrl.R
 	selectedServerIDs, err := r.getSelectedServerIDs(ctx, lb.Spec.ServerSelector)
 	if err != nil {
 		r.setCondition(lb, conditionTypeReady, metav1.ConditionFalse, "SelectorError", err.Error())
-		_ = r.Status().Update(ctx, lb)
+		_ = r.updateLoadBalancerStatusWithRetry(ctx, lb)
 		return ctrl.Result{}, err
 	}
 
 	if err := r.reconcileLoadBalancer(ctx, lb, selectedServerIDs); err != nil {
 		r.setCondition(lb, conditionTypeReady, metav1.ConditionFalse, "ReconcileError", err.Error())
-		_ = r.Status().Update(ctx, lb)
+		_ = r.updateLoadBalancerStatusWithRetry(ctx, lb)
 		return ctrl.Result{}, err
 	}
 
@@ -177,7 +178,7 @@ func (r *HCloudLoadBalancerReconciler) reconcileLoadBalancer(
 	obj.Status.PublicIPv6 = refreshed.PublicIPv6
 	obj.Status.AttachedServerIDs = refreshed.Targets
 	r.setCondition(obj, conditionTypeReady, metav1.ConditionTrue, "LoadBalancerReady", "Load balancer is provisioned and targets are in sync")
-	return r.Status().Update(ctx, obj)
+	return r.updateLoadBalancerStatusWithRetry(ctx, obj)
 }
 
 func (r *HCloudLoadBalancerReconciler) getSelectedServerIDs(ctx context.Context, selector *metav1.LabelSelector) ([]int64, error) {
@@ -224,5 +225,19 @@ func (r *HCloudLoadBalancerReconciler) setCondition(
 		Reason:             reason,
 		Message:            message,
 		LastTransitionTime: metav1.Now(),
+	})
+}
+
+func (r *HCloudLoadBalancerReconciler) updateLoadBalancerStatusWithRetry(ctx context.Context, obj *infrav1alpha1.HCloudLoadBalancer) error {
+	key := types.NamespacedName{Name: obj.Name, Namespace: obj.Namespace}
+	desiredStatus := obj.Status.DeepCopy()
+
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		current := &infrav1alpha1.HCloudLoadBalancer{}
+		if err := r.Get(ctx, key, current); err != nil {
+			return err
+		}
+		current.Status = *desiredStatus.DeepCopy()
+		return r.Status().Update(ctx, current)
 	})
 }

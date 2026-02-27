@@ -10,6 +10,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -70,7 +72,7 @@ func (r *HCloudFirewallReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	if err := r.reconcileHCloudFirewall(ctx, fw); err != nil {
 		r.setFirewallCondition(fw, conditionTypeReady, metav1.ConditionFalse, "ReconcileError", err.Error())
-		_ = r.Status().Update(ctx, fw)
+		_ = r.updateFirewallStatusWithRetry(ctx, fw)
 		return ctrl.Result{}, err
 	}
 
@@ -110,7 +112,7 @@ func (r *HCloudFirewallReconciler) reconcileHCloudFirewall(ctx context.Context, 
 		}
 		obj.Status.FirewallID = created.ID
 		r.setFirewallCondition(obj, conditionTypeReady, metav1.ConditionTrue, "FirewallCreated", "Firewall created in Hetzner Cloud")
-		return r.Status().Update(ctx, obj)
+		return r.updateFirewallStatusWithRetry(ctx, obj)
 	}
 
 	obj.Status.FirewallID = existing.ID
@@ -154,7 +156,7 @@ func (r *HCloudFirewallReconciler) reconcileHCloudFirewall(ctx context.Context, 
 	}
 
 	r.setFirewallCondition(obj, conditionTypeReady, metav1.ConditionTrue, "FirewallReady", "Firewall rules and attachments are in sync")
-	return r.Status().Update(ctx, obj)
+	return r.updateFirewallStatusWithRetry(ctx, obj)
 }
 
 func (r *HCloudFirewallReconciler) desiredApplyResources(ctx context.Context, fw *infrav1alpha1.HCloudFirewall) ([]hcloudclient.FirewallApplyResource, error) {
@@ -316,4 +318,18 @@ func partitionApplyTargets(current, desired []hcloudclient.FirewallApplyResource
 		}
 	}
 	return remove, add
+}
+
+func (r *HCloudFirewallReconciler) updateFirewallStatusWithRetry(ctx context.Context, obj *infrav1alpha1.HCloudFirewall) error {
+	key := types.NamespacedName{Name: obj.Name, Namespace: obj.Namespace}
+	desiredStatus := obj.Status.DeepCopy()
+
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		current := &infrav1alpha1.HCloudFirewall{}
+		if err := r.Get(ctx, key, current); err != nil {
+			return err
+		}
+		current.Status = *desiredStatus.DeepCopy()
+		return r.Status().Update(ctx, current)
+	})
 }

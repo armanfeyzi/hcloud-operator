@@ -8,6 +8,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -67,7 +69,7 @@ func (r *HCloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	if err := r.reconcileHCloudNetwork(ctx, net); err != nil {
 		r.setNetworkCondition(net, conditionTypeReady, metav1.ConditionFalse, "ReconcileError", err.Error())
-		_ = r.Status().Update(ctx, net)
+		_ = r.updateNetworkStatusWithRetry(ctx, net)
 		return ctrl.Result{}, err
 	}
 
@@ -108,7 +110,7 @@ func (r *HCloudNetworkReconciler) reconcileHCloudNetwork(ctx context.Context, ob
 		obj.Status.IPRange = created.IPRange
 		obj.Status.SubnetZones = append([]string{}, created.SubnetZones...)
 		r.setNetworkCondition(obj, conditionTypeReady, metav1.ConditionFalse, "NetworkCreated", "Private network created; adding subnets if requested")
-		if err := r.Status().Update(ctx, obj); err != nil {
+		if err := r.updateNetworkStatusWithRetry(ctx, obj); err != nil {
 			return fmt.Errorf("persist network id: %w", err)
 		}
 		existing = created
@@ -137,7 +139,7 @@ func (r *HCloudNetworkReconciler) reconcileHCloudNetwork(ctx context.Context, ob
 	obj.Status.SubnetZones = append([]string{}, existing.SubnetZones...)
 	slices.Sort(obj.Status.SubnetZones)
 	r.setNetworkCondition(obj, conditionTypeReady, metav1.ConditionTrue, "NetworkReady", "Private network is provisioned")
-	return r.Status().Update(ctx, obj)
+	return r.updateNetworkStatusWithRetry(ctx, obj)
 }
 
 func subnetZonePresent(zones []string, want string) bool {
@@ -168,5 +170,19 @@ func (r *HCloudNetworkReconciler) setNetworkCondition(
 		Reason:             reason,
 		Message:            message,
 		LastTransitionTime: metav1.Now(),
+	})
+}
+
+func (r *HCloudNetworkReconciler) updateNetworkStatusWithRetry(ctx context.Context, obj *infrav1alpha1.HCloudNetwork) error {
+	key := types.NamespacedName{Name: obj.Name, Namespace: obj.Namespace}
+	desiredStatus := obj.Status.DeepCopy()
+
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		current := &infrav1alpha1.HCloudNetwork{}
+		if err := r.Get(ctx, key, current); err != nil {
+			return err
+		}
+		current.Status = *desiredStatus.DeepCopy()
+		return r.Status().Update(ctx, current)
 	})
 }
