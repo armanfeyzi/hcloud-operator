@@ -1,0 +1,150 @@
+# Production-leaning k3s infrastructure blueprint (infrastructure primitives only).
+#
+# This sample demonstrates a stronger baseline using:
+# - private network
+# - multiple servers (control-plane + workers)
+# - load balancer selecting ingress-capable nodes
+# - firewall with restricted source CIDRs (replace placeholders)
+#
+# Prerequisites:
+#   make install
+#   # or: kubectl apply -f config/crd/bases/
+#
+# Apply:
+#   kubectl apply -f config/samples/complex/k3s-production-blueprint/k3s_production_blueprint_v1alpha1.yaml
+#
+# IMPORTANT:
+# - Replace REPLACE_WITH_HCLOUD_SSH_KEY_NAME in every server spec.
+# - Replace REPLACE_WITH_ADMIN_CIDR and REPLACE_WITH_OFFICE_CIDR in firewall rules.
+# - This sample provisions infrastructure shape only; k3s server/agent join automation
+#   and Day-2 components (CCM/CSI/autoscaler) should be added separately.
+---
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudNetwork
+metadata:
+  name: k3s-prod-private
+spec:
+  ipRange: 10.210.0.0/16
+  networkZones:
+    - eu-central
+  labels:
+    env: prod
+    app.kubernetes.io/part-of: k3s-prod
+---
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudServer
+metadata:
+  name: k3s-prod-control-1
+  labels:
+    app.kubernetes.io/part-of: k3s-prod
+    hkc.io/cluster-role: control-plane
+spec:
+  serverType: cpx31
+  image: ubuntu-22.04
+  location: fsn1
+  sshKeys:
+    - REPLACE_WITH_HCLOUD_SSH_KEY_NAME
+  networkRef:
+    name: k3s-prod-private
+  labels:
+    env: prod
+    app.kubernetes.io/part-of: k3s-prod
+    hkc.io/cluster-role: control-plane
+---
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudServer
+metadata:
+  name: k3s-prod-worker-1
+  labels:
+    app.kubernetes.io/part-of: k3s-prod
+    hkc.io/cluster-role: worker
+    hkc.io/lb-target: ingress
+spec:
+  serverType: cpx31
+  image: ubuntu-22.04
+  location: fsn1
+  sshKeys:
+    - REPLACE_WITH_HCLOUD_SSH_KEY_NAME
+  networkRef:
+    name: k3s-prod-private
+  labels:
+    env: prod
+    app.kubernetes.io/part-of: k3s-prod
+    hkc.io/cluster-role: worker
+    hkc.io/lb-target: ingress
+---
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudServer
+metadata:
+  name: k3s-prod-worker-2
+  labels:
+    app.kubernetes.io/part-of: k3s-prod
+    hkc.io/cluster-role: worker
+    hkc.io/lb-target: ingress
+spec:
+  serverType: cpx31
+  image: ubuntu-22.04
+  location: fsn1
+  sshKeys:
+    - REPLACE_WITH_HCLOUD_SSH_KEY_NAME
+  networkRef:
+    name: k3s-prod-private
+  labels:
+    env: prod
+    app.kubernetes.io/part-of: k3s-prod
+    hkc.io/cluster-role: worker
+    hkc.io/lb-target: ingress
+---
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudLoadBalancer
+metadata:
+  name: k3s-prod-public
+spec:
+  loadBalancerType: lb11
+  location: fsn1
+  algorithm: least_connections
+  serverSelector:
+    matchLabels:
+      hkc.io/lb-target: ingress
+  labels:
+    env: prod
+    app.kubernetes.io/part-of: k3s-prod
+---
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudFirewall
+metadata:
+  name: k3s-prod-edge
+spec:
+  labels:
+    env: prod
+    app.kubernetes.io/part-of: k3s-prod
+  rules:
+    - direction: in
+      protocol: tcp
+      port: "22"
+      sourceIPs:
+        - REPLACE_WITH_ADMIN_CIDR
+      description: SSH from admin CIDR
+    - direction: in
+      protocol: tcp
+      port: "6443"
+      sourceIPs:
+        - REPLACE_WITH_ADMIN_CIDR
+        - REPLACE_WITH_OFFICE_CIDR
+      description: Kubernetes API from trusted CIDRs
+    - direction: in
+      protocol: tcp
+      port: "80"
+      sourceIPs:
+        - 0.0.0.0/0
+        - ::/0
+      description: HTTP ingress
+    - direction: in
+      protocol: tcp
+      port: "443"
+      sourceIPs:
+        - 0.0.0.0/0
+        - ::/0
+      description: HTTPS ingress
+  applyTo:
+    labelSelector: "app.kubernetes.io/part-of=k3s-prod"
