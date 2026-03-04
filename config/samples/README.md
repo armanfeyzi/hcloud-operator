@@ -58,6 +58,8 @@ Quick checks:
   - `kubectl apply -f config/samples/complex/k3s-single-node-public-only/k3s_single_node_public_only_v1alpha1.yaml`
 - Single node, private network (recommended baseline):
   - `kubectl apply -f config/samples/complex/k3s-single-node-private-net/k3s_single_node_private_net_v1alpha1.yaml`
+- Multi-node join template (server + agents):
+  - `kubectl apply -f config/samples/complex/k3s-multi-node-join/k3s_multi_node_join_v1alpha1.yaml`
 
 See `docs/k3s-on-hcloud.md` for full flow and kubeconfig usage.
 
@@ -81,3 +83,4 @@ Delete the specific sample file you applied, for example:
 - `complex/k3s-production-blueprint/`
 - `complex/k3s-single-node-public-only/`
 - `complex/k3s-single-node-private-net/`
+- `complex/k3s-multi-node-join/`

@@ -24,7 +24,7 @@ This guide shows how to provision a **single-node k3s** cluster using HKIC primi
 | **`userData`** | Applied by Hetzner **when the server is created**. Changing `spec.userData` on an existing `HCloudServer` does not re-run cloud-init. To change bootstrap, replace the server (new object or delete/recreate). |
 | **Image / location** | `spec.image` and `spec.location` are **immutable** after creation (API validation). |
 | **`HCloudFirewall`** | Available — see `HCloudFirewall` CRD and `config/samples/simple/hcloud-firewall/hcloud_firewall_v1alpha1.yaml`. Attach by `applyTo.serverRefs` (after `HCloudServer.status.serverID` exists) and/or `applyTo.labelSelector`. |
-| **HA / multi-node** | This sample is **one server**. For multiple nodes you typically create a **server** node first, read the join token from it, then pass that token in **agent** `userData` on further servers (automation left to you or future docs). |
+| **HA / multi-node** | The default quickstart is **one server**. For multi-node bootstrap, use `config/samples/complex/k3s-multi-node-join/k3s_multi_node_join_v1alpha1.yaml` as a template (shared token + server private IP placeholders in agent `userData`). |
 | **Not hetzner-k3s** | CCM, CSI, Cluster Autoscaler, etc. are **not** installed by this sample—only k3s. See [Roadmap](roadmap.md) for Day-2 parity work. |
 
 ## Quick start
@@ -95,9 +95,10 @@ Order may delete the server before the network; the controller should detach/del
 |------|---------|
 | `config/samples/complex/k3s-single-node-private-net/k3s_single_node_private_net_v1alpha1.yaml` | Private network + single k3s server (recommended default). |
 | `config/samples/complex/k3s-single-node-public-only/k3s_single_node_public_only_v1alpha1.yaml` | Single server, **no** `HCloudNetwork`—minimal smoke test (Flannel over public/default routing). |
+| `config/samples/complex/k3s-multi-node-join/k3s_multi_node_join_v1alpha1.yaml` | Multi-node bootstrap template: one server and multiple agents joining via shared token and private server URL placeholders. |
 
 ## Next steps
 
-- Add **multi-node** join flow (server token + agent `userData`).
+- Refine **multi-node** join automation (for example: token and server private IP wiring via a higher-level composition).
 - Add **Day-2** manifests (Hetzner CCM, CSI) per [Roadmap](roadmap.md).
 - Use **`HCloudFirewall`** for hetzner-k3s-style edge rules (SSH, API) instead of ad-hoc console work.

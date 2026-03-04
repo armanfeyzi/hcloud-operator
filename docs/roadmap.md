@@ -48,7 +48,7 @@ The milestone below is the **cluster-shaped** slice of (2); Phases 1–3 are the
 - [x] `HCloudNetwork` CRD and reconciler (private networks: `ipRange`, optional `networkZones` for Cloud subnets, labels; adopt-by-name; finalizer cleanup)
 - [x] Attach Cloud Servers to `HCloudNetwork` (`HCloudServer.spec.networkRef`)
 - [x] `HCloudFirewall` CRD and reconciler
-- [ ] Cloud-init / node bootstrap templates (e.g. k3s join) built on networks + servers
+- [x] Cloud-init / node bootstrap templates (e.g. k3s join) built on networks + servers
 
 ## Phase 4: GitOps & platform engineering
 - [ ] **Helm chart** (image, token secret, optional feature flags) — primary install path alongside kustomize

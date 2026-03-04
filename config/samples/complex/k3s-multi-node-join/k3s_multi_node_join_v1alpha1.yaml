@@ -1,0 +1,125 @@
+# Multi-node k3s bootstrap template: one server node + two agent nodes.
+#
+# This sample is intended as a practical join-flow starting point.
+# It uses a shared token and a server private IP placeholder for agents.
+#
+# Before apply:
+# - Replace REPLACE_WITH_HCLOUD_SSH_KEY_NAME on all servers.
+# - Replace REPLACE_WITH_SHARED_K3S_TOKEN with a strong random secret.
+# - Replace REPLACE_WITH_SERVER_PRIVATE_IP with control-plane private IP
+#   after the server is created (or pre-assign if you have a known value).
+#
+# Apply:
+#   kubectl apply -f config/samples/complex/k3s-multi-node-join/k3s_multi_node_join_v1alpha1.yaml
+#
+# Note:
+# - `userData` runs only on first server creation. If you change token/join
+#   settings, recreate affected nodes.
+---
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudNetwork
+metadata:
+  name: k3s-join-private
+spec:
+  ipRange: 10.220.0.0/16
+  networkZones:
+    - eu-central
+  labels:
+    app.kubernetes.io/name: k3s-join
+---
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudServer
+metadata:
+  name: k3s-join-server
+  labels:
+    app.kubernetes.io/name: k3s-join
+    role: k3s-server
+spec:
+  serverType: cpx31
+  image: ubuntu-22.04
+  location: fsn1
+  sshKeys:
+    - REPLACE_WITH_HCLOUD_SSH_KEY_NAME
+  networkRef:
+    name: k3s-join-private
+  labels:
+    app.kubernetes.io/name: k3s-join
+    role: k3s-server
+  userData: |
+    #cloud-config
+    package_update: true
+    packages:
+      - curl
+    runcmd:
+      - |
+        set -eux
+        PUBIP="$(curl -fs http://169.254.169.254/hetzner/v1/metadata/public-ipv4)"
+        PRIVIP="$(ip -4 -o addr show eth1 | awk '{print $4}' | cut -d/ -f1)"
+        TOKEN="REPLACE_WITH_SHARED_K3S_TOKEN"
+        export INSTALL_K3S_CHANNEL=stable
+        export INSTALL_K3S_EXEC="server --token=${TOKEN} --node-ip=${PRIVIP} --advertise-address=${PRIVIP} --flannel-iface=eth1 --tls-san=${PUBIP} --disable traefik"
+        curl -sfL https://get.k3s.io | sh -
+---
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudServer
+metadata:
+  name: k3s-join-agent-1
+  labels:
+    app.kubernetes.io/name: k3s-join
+    role: k3s-agent
+spec:
+  serverType: cpx31
+  image: ubuntu-22.04
+  location: fsn1
+  sshKeys:
+    - REPLACE_WITH_HCLOUD_SSH_KEY_NAME
+  networkRef:
+    name: k3s-join-private
+  labels:
+    app.kubernetes.io/name: k3s-join
+    role: k3s-agent
+  userData: |
+    #cloud-config
+    package_update: true
+    packages:
+      - curl
+    runcmd:
+      - |
+        set -eux
+        SERVER_URL="https://REPLACE_WITH_SERVER_PRIVATE_IP:6443"
+        TOKEN="REPLACE_WITH_SHARED_K3S_TOKEN"
+        export INSTALL_K3S_CHANNEL=stable
+        export INSTALL_K3S_EXEC="agent --server=${SERVER_URL} --token=${TOKEN}"
+        curl -sfL https://get.k3s.io | sh -
+---
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudServer
+metadata:
+  name: k3s-join-agent-2
+  labels:
+    app.kubernetes.io/name: k3s-join
+    role: k3s-agent
+spec:
+  serverType: cpx31
+  image: ubuntu-22.04
+  location: fsn1
+  sshKeys:
+    - REPLACE_WITH_HCLOUD_SSH_KEY_NAME
+  networkRef:
+    name: k3s-join-private
+  labels:
+    app.kubernetes.io/name: k3s-join
+    role: k3s-agent
+  userData: |
+    #cloud-config
+    package_update: true
+    packages:
+      - curl
+    runcmd:
+      - |
+        set -eux
+        SERVER_URL="https://REPLACE_WITH_SERVER_PRIVATE_IP:6443"
+        TOKEN="REPLACE_WITH_SHARED_K3S_TOKEN"
+        export INSTALL_K3S_CHANNEL=stable
+        export INSTALL_K3S_EXEC="agent --server=${SERVER_URL} --token=${TOKEN}"
+        curl -sfL https://get.k3s.io | sh -
