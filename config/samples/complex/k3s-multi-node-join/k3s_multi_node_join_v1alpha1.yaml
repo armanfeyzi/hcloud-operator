@@ -35,7 +35,7 @@ metadata:
     app.kubernetes.io/name: k3s-join
     role: k3s-server
 spec:
-  serverType: cpx31
+  serverType: cx23
   image: ubuntu-22.04
   location: fsn1
   sshKeys:
@@ -68,7 +68,7 @@ metadata:
     app.kubernetes.io/name: k3s-join
     role: k3s-agent
 spec:
-  serverType: cpx31
+  serverType: cx23
   image: ubuntu-22.04
   location: fsn1
   sshKeys:
@@ -100,7 +100,7 @@ metadata:
     app.kubernetes.io/name: k3s-join
     role: k3s-agent
 spec:
-  serverType: cpx31
+  serverType: cx23
   image: ubuntu-22.04
   location: fsn1
   sshKeys:
