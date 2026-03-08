@@ -73,6 +73,34 @@ This guide shows how to provision a **single-node k3s** cluster using HKIC primi
 
    Because the install script added `--tls-san` for the public IP, the API certificate should validate for that address.
 
+## Secure kubeconfig handling (recommended)
+
+Avoid printing kubeconfig in controller logs. A safer pattern is:
+
+1. Fetch kubeconfig from the server over SSH.
+2. Store it as a Kubernetes Secret with restricted RBAC access.
+3. Pull it locally only when needed.
+
+This repo includes a helper script:
+
+```bash
+chmod +x hack/export-k3s-kubeconfig-to-secret.sh
+hack/export-k3s-kubeconfig-to-secret.sh <server-public-ip> <secret-name> [namespace] [ssh-key-path]
+```
+
+Example:
+
+```bash
+hack/export-k3s-kubeconfig-to-secret.sh <status.publicIPv4> k3s-join-kubeconfig kube-public ~/.ssh/id_ed25519
+```
+
+Retrieve later:
+
+```bash
+kubectl get secret -n kube-public k3s-join-kubeconfig -o jsonpath='{.data.config}' | base64 -d > ./k3s-from-secret.yaml
+KUBECONFIG=./k3s-from-secret.yaml kubectl get nodes
+```
+
 ## Troubleshooting
 
 - **Private IP / `eth1`:** On some images the private NIC may not be `eth1`. Check with `ip -4 addr` over SSH. If installs fail, adjust `userData` (`--flannel-iface`, `--node-ip`, `--advertise-address`) to match your interface and address.
