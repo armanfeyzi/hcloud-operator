@@ -1,13 +1,13 @@
 # Multi-node k3s bootstrap template: one server node + two agent nodes.
 #
 # This sample is intended as a practical join-flow starting point.
-# It uses a shared token and a server private IP placeholder for agents.
+# It is designed as a two-phase flow:
+# 1) apply infrastructure (network + server + agent VMs)
+# 2) configure/join agents using hack/configure-k3s-join-agents.sh
 #
 # Before apply:
 # - Replace REPLACE_WITH_HCLOUD_SSH_KEY_NAME on all servers.
 # - Replace REPLACE_WITH_SHARED_K3S_TOKEN with a strong random secret.
-# - Replace REPLACE_WITH_SERVER_PRIVATE_IP with control-plane private IP
-#   after the server is created (or pre-assign if you have a known value).
 #
 # Apply:
 #   kubectl apply -f config/samples/complex/k3s-multi-node-join/k3s_multi_node_join_v1alpha1.yaml
@@ -15,6 +15,8 @@
 # Note:
 # - `userData` runs only on first server creation. If you change token/join
 #   settings, recreate affected nodes.
+# - Agent nodes are provisioned first; run join script after server is up:
+#     hack/configure-k3s-join-agents.sh k3s-join-server
 ---
 apiVersion: infra.hkc.io/v1alpha1
 kind: HCloudNetwork
@@ -54,10 +56,18 @@ spec:
       - |
         set -eux
         PUBIP="$(curl -fs http://169.254.169.254/hetzner/v1/metadata/public-ipv4)"
-        PRIVIP="$(ip -4 -o addr show eth1 | awk '{print $4}' | cut -d/ -f1)"
+        PRIVIP="$(ip -4 route get 1.1.1.1 | awk '{for(i=1;i<=NF;i++) if($i==\"src\"){print $(i+1); exit}}')"
+        PRIVIF="$(ip -4 route get 1.1.1.1 | awk '{for(i=1;i<=NF;i++) if($i==\"dev\"){print $(i+1); exit}}')"
         TOKEN="REPLACE_WITH_SHARED_K3S_TOKEN"
         export INSTALL_K3S_CHANNEL=stable
-        export INSTALL_K3S_EXEC="server --token=${TOKEN} --node-ip=${PRIVIP} --advertise-address=${PRIVIP} --flannel-iface=eth1 --tls-san=${PUBIP} --disable traefik"
+        EXTRA_ARGS=""
+        if [ -n "${PRIVIP}" ]; then
+          EXTRA_ARGS="${EXTRA_ARGS} --node-ip=${PRIVIP} --advertise-address=${PRIVIP}"
+        fi
+        if [ -n "${PRIVIF}" ]; then
+          EXTRA_ARGS="${EXTRA_ARGS} --flannel-iface=${PRIVIF}"
+        fi
+        export INSTALL_K3S_EXEC="server --token=${TOKEN}${EXTRA_ARGS} --tls-san=${PUBIP} --disable traefik"
         curl -sfL https://get.k3s.io | sh -
 ---
 apiVersion: infra.hkc.io/v1alpha1
@@ -85,12 +95,9 @@ spec:
       - curl
     runcmd:
       - |
-        set -eux
-        SERVER_URL="https://REPLACE_WITH_SERVER_PRIVATE_IP:6443"
-        TOKEN="REPLACE_WITH_SHARED_K3S_TOKEN"
-        export INSTALL_K3S_CHANNEL=stable
-        export INSTALL_K3S_EXEC="agent --server=${SERVER_URL} --token=${TOKEN}"
-        curl -sfL https://get.k3s.io | sh -
+        # Agent join is configured in phase-2 via:
+        # hack/configure-k3s-join-agents.sh
+        echo "k3s agent join is configured post-provisioning."
 ---
 apiVersion: infra.hkc.io/v1alpha1
 kind: HCloudServer
@@ -117,9 +124,6 @@ spec:
       - curl
     runcmd:
       - |
-        set -eux
-        SERVER_URL="https://REPLACE_WITH_SERVER_PRIVATE_IP:6443"
-        TOKEN="REPLACE_WITH_SHARED_K3S_TOKEN"
-        export INSTALL_K3S_CHANNEL=stable
-        export INSTALL_K3S_EXEC="agent --server=${SERVER_URL} --token=${TOKEN}"
-        curl -sfL https://get.k3s.io | sh -
+        # Agent join is configured in phase-2 via:
+        # hack/configure-k3s-join-agents.sh
+        echo "k3s agent join is configured post-provisioning."
