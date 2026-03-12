@@ -61,6 +61,9 @@ Quick checks:
 - Multi-node join template (server + agents):
   - `kubectl apply -f config/samples/complex/k3s-multi-node-join/k3s_multi_node_join_v1alpha1.yaml`
   - then: `hack/configure-k3s-join-agents.sh k3s-join-server`
+- Day-2 baseline (CCM + CSI):
+  - `config/samples/complex/k3s-day2-ccm/README.md`
+  - `config/samples/complex/k3s-day2-csi/README.md`
 
 See `docs/k3s-on-hcloud.md` for full flow and kubeconfig usage.
 
@@ -85,3 +88,5 @@ Delete the specific sample file you applied, for example:
 - `complex/k3s-single-node-public-only/`
 - `complex/k3s-single-node-private-net/`
 - `complex/k3s-multi-node-join/`
+- `complex/k3s-day2-ccm/`
+- `complex/k3s-day2-csi/`

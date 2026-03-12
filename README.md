@@ -183,6 +183,7 @@ kubectl get hcs,hcv,hclb
 - [CRD Reference](docs/crds.md)
 - [Development Guide](docs/development.md)
 - [k3s on Hetzner with HKIC](docs/k3s-on-hcloud.md) — cloud-init sample cluster
+- [k3s Day-2 (CCM + CSI)](docs/k3s-day2.md)
 - [k3s kubeconfig access pattern](docs/k3s-on-hcloud.md#secure-kubeconfig-handling-recommended)
 - [Roadmap](docs/roadmap.md)
 - [Contributing](CONTRIBUTING.md)

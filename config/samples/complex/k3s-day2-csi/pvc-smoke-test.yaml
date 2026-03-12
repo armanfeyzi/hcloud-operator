@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: csi-smoke-pvc
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: csi-smoke-pod
+  namespace: default
+spec:
+  containers:
+    - name: writer
+      image: busybox:1.36
+      command: ["/bin/sh", "-c", "echo csi-ok > /data/ok.txt && sleep 3600"]
+      volumeMounts:
+        - name: data
+          mountPath: /data
+  volumes:
+    - name: data
+      persistentVolumeClaim:
+        claimName: csi-smoke-pvc
