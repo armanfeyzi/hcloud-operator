@@ -4,6 +4,7 @@ metadata:
   name: csi-smoke-pvc
   namespace: default
 spec:
+  storageClassName: hcloud-volumes
   accessModes:
     - ReadWriteOnce
   resources:

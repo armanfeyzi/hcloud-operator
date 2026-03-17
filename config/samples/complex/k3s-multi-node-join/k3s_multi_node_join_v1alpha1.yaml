@@ -6,7 +6,7 @@
 # 2) configure/join agents using hack/configure-k3s-join-agents.sh
 #
 # Before apply:
-# - Replace REPLACE_WITH_HCLOUD_SSH_KEY_NAME on all servers.
+# - Replace feyziarman@gmail.com on all servers.
 # - Replace REPLACE_WITH_SHARED_K3S_TOKEN with a strong random secret.
 #
 # Apply:
@@ -41,7 +41,7 @@ spec:
   image: ubuntu-22.04
   location: fsn1
   sshKeys:
-    - REPLACE_WITH_HCLOUD_SSH_KEY_NAME
+    - feyziarman@gmail.com
   networkRef:
     name: k3s-join-private
   labels:
@@ -56,8 +56,8 @@ spec:
       - |
         set -eux
         PUBIP="$(curl -fs http://169.254.169.254/hetzner/v1/metadata/public-ipv4)"
-        PRIVIP="$(ip -4 route get 1.1.1.1 | awk '{for(i=1;i<=NF;i++) if($i==\"src\"){print $(i+1); exit}}')"
-        PRIVIF="$(ip -4 route get 1.1.1.1 | awk '{for(i=1;i<=NF;i++) if($i==\"dev\"){print $(i+1); exit}}')"
+        PRIVIP="$(ip -4 route get 1.1.1.1 | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}')"
+        PRIVIF="$(ip -4 route get 1.1.1.1 | awk '{for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1); exit}}')"
         TOKEN="REPLACE_WITH_SHARED_K3S_TOKEN"
         export INSTALL_K3S_CHANNEL=stable
         EXTRA_ARGS=""
@@ -82,7 +82,7 @@ spec:
   image: ubuntu-22.04
   location: fsn1
   sshKeys:
-    - REPLACE_WITH_HCLOUD_SSH_KEY_NAME
+    - feyziarman@gmail.com
   networkRef:
     name: k3s-join-private
   labels:
@@ -111,7 +111,7 @@ spec:
   image: ubuntu-22.04
   location: fsn1
   sshKeys:
-    - REPLACE_WITH_HCLOUD_SSH_KEY_NAME
+    - feyziarman@gmail.com
   networkRef:
     name: k3s-join-private
   labels:
