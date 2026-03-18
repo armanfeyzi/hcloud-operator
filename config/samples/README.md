@@ -61,6 +61,8 @@ Quick checks:
 - Multi-node join template (server + agents):
   - `kubectl apply -f config/samples/complex/k3s-multi-node-join/k3s_multi_node_join_v1alpha1.yaml`
   - then: `hack/configure-k3s-join-agents.sh k3s-join-server` (auto-discovers agents by labels)
+  - verify base health: `hack/verify-k3s-join-cluster.sh k3s-join-server`
+  - verify with Day-2 smoke checks: `hack/verify-k3s-join-cluster.sh k3s-join-server 3 ~/.ssh/id_ed25519 600 true`
 - Day-2 baseline (CCM + CSI):
   - `config/samples/complex/k3s-day2-ccm/README.md`
   - `config/samples/complex/k3s-day2-csi/README.md`

@@ -125,6 +125,18 @@ Order may delete the server before the network; the controller should detach/del
 | `config/samples/complex/k3s-single-node-public-only/k3s_single_node_public_only_v1alpha1.yaml` | Single server, **no** `HCloudNetwork`—minimal smoke test (Flannel over public/default routing). |
 | `config/samples/complex/k3s-multi-node-join/k3s_multi_node_join_v1alpha1.yaml` | Multi-node bootstrap template: one server plus agents, with post-provision join using `hack/configure-k3s-join-agents.sh k3s-join-server` (auto token fetch + agent label discovery). |
 
+Post-join verification helper:
+
+```bash
+hack/verify-k3s-join-cluster.sh k3s-join-server
+```
+
+Optional Day-2 smoke verification (after installing CCM + CSI):
+
+```bash
+hack/verify-k3s-join-cluster.sh k3s-join-server 3 ~/.ssh/id_ed25519 600 true
+```
+
 ## Next steps
 
 - Refine **multi-node** join automation (for example: token and server private IP wiring via a higher-level composition).

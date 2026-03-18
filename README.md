@@ -184,6 +184,7 @@ kubectl get hcs,hcv,hclb
 - [Development Guide](docs/development.md)
 - [k3s on Hetzner with HKIC](docs/k3s-on-hcloud.md) — cloud-init sample cluster
 - [k3s Day-2 (CCM + CSI)](docs/k3s-day2.md)
+- [hetzner-k3s `cluster.yaml` -> HKIC mapping](docs/hetzner-k3s-cluster-yaml-mapping.md)
 - [k3s kubeconfig access pattern](docs/k3s-on-hcloud.md#secure-kubeconfig-handling-recommended)
 - [Roadmap](docs/roadmap.md)
 - [Contributing](CONTRIBUTING.md)

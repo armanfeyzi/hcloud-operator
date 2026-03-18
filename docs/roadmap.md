@@ -24,7 +24,7 @@ The milestone below is the **cluster-shaped** slice of (2); Phases 1–3 are the
 - [ ] **Node bootstrap** — extend beyond samples: agent join flow, token handling, optional higher-level automation (still composable)
 - [ ] **Cluster shape abstraction** — either a dedicated “cluster” API (`HCloudK3sCluster`-style) or a documented [kro](https://github.com/kubernetes-sigs/kro) / Helm recipe that maps **masters pool + worker pools + networking + LB** to existing CRDs
 - [ ] **Day-2 manifests** — versioned examples for Hetzner CCM, CSI, Cluster Autoscaler, System Upgrade Controller (as apply/kustomize/Helm), matching what `hetzner-k3s create` installs (**CCM + CSI samples/doc added; autoscaler + system-upgrade pending**)
-- [ ] **Config mapping doc** — translate a representative `cluster.yaml` from hetzner-k3s into HKIC resources (field-by-field notes, gaps, extensions)
+- [x] **Config mapping doc** — translate a representative `cluster.yaml` from hetzner-k3s into HKIC resources (field-by-field notes, gaps, extensions): [docs/hetzner-k3s-cluster-yaml-mapping.md](hetzner-k3s-cluster-yaml-mapping.md)
 - [ ] **Parity checklist / E2E** — optional CI or runbook: bring up a cluster via HKIC and verify the same operational properties we care about (private connectivity, API availability, CSI storage class, CCM LB, etc.)
 
 ## Phase 1: MVP — **Complete**

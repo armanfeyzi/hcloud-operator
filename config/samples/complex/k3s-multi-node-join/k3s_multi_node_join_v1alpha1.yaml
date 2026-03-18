@@ -16,6 +16,8 @@
 #   settings, recreate affected nodes.
 # - Agent nodes are provisioned first; run join script after server is up:
 #     hack/configure-k3s-join-agents.sh k3s-join-server
+# - Optional quick health check after join:
+#     hack/verify-k3s-join-cluster.sh k3s-join-server
 ---
 apiVersion: infra.hkc.io/v1alpha1
 kind: HCloudNetwork

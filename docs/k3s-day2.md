@@ -57,3 +57,11 @@ Expected: PVC is `Bound`; pod is `Running`.
 kubectl delete -f config/samples/complex/k3s-day2-ccm/lb-smoke-test.yaml
 kubectl delete -f config/samples/complex/k3s-day2-csi/pvc-smoke-test.yaml
 ```
+
+## 4) Optional combined verifier
+
+If your cluster was created from the multi-node join sample, you can run one command from your workstation to validate base health plus Day-2 smoke checks remotely on the server node:
+
+```bash
+hack/verify-k3s-join-cluster.sh k3s-join-server 3 ~/.ssh/id_ed25519 600 true
+```
