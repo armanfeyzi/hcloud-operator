@@ -1,0 +1,161 @@
+# Cluster-shape composition sample for HKIC.
+#
+# Edit before apply:
+# - Replace REPLACE_WITH_HETZNER_SSH_KEY_NAME on all servers.
+# - Restrict firewall sourceIPs for SSH/API to trusted CIDRs.
+#
+# Apply:
+#   kubectl apply -f config/samples/complex/k3s-cluster-shape/k3s_cluster_shape_v1alpha1.yaml
+#   hack/configure-k3s-join-agents.sh k3s-shape-server "app.kubernetes.io/name=k3s-shape,role=k3s-agent"
+#   hack/verify-k3s-join-cluster.sh k3s-shape-server
+---
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudNetwork
+metadata:
+  name: k3s-shape-private
+  labels:
+    app.kubernetes.io/name: k3s-shape
+spec:
+  ipRange: 10.230.0.0/16
+  networkZones:
+    - eu-central
+  labels:
+    app.kubernetes.io/name: k3s-shape
+---
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudFirewall
+metadata:
+  name: k3s-shape-edge
+  labels:
+    app.kubernetes.io/name: k3s-shape
+spec:
+  labels:
+    app.kubernetes.io/name: k3s-shape
+  rules:
+    - direction: in
+      protocol: tcp
+      port: "22"
+      sourceIPs:
+        - 0.0.0.0/0
+        - ::/0
+      description: SSH ingress (tighten in production)
+    - direction: in
+      protocol: tcp
+      port: "6443"
+      sourceIPs:
+        - 0.0.0.0/0
+        - ::/0
+      description: k3s API ingress (tighten in production)
+  applyTo:
+    labelSelector: app.kubernetes.io/name=k3s-shape
+---
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudServer
+metadata:
+  name: k3s-shape-server
+  labels:
+    app.kubernetes.io/name: k3s-shape
+    role: k3s-server
+spec:
+  serverType: cx23
+  image: ubuntu-22.04
+  location: fsn1
+  sshKeys:
+    - REPLACE_WITH_HETZNER_SSH_KEY_NAME
+  networkRef:
+    name: k3s-shape-private
+  labels:
+    app.kubernetes.io/name: k3s-shape
+    role: k3s-server
+  userData: |
+    #cloud-config
+    package_update: true
+    packages:
+      - curl
+    runcmd:
+      - |
+        set -eux
+        PUBIP="$(curl -fs http://169.254.169.254/hetzner/v1/metadata/public-ipv4)"
+        PRIVIP="$(ip -4 route get 1.1.1.1 | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}')"
+        PRIVIF="$(ip -4 route get 1.1.1.1 | awk '{for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1); exit}}')"
+        export INSTALL_K3S_CHANNEL=stable
+        EXTRA_ARGS=""
+        if [ -n "${PRIVIP}" ]; then
+          EXTRA_ARGS="${EXTRA_ARGS} --node-ip=${PRIVIP} --advertise-address=${PRIVIP}"
+        fi
+        if [ -n "${PRIVIF}" ]; then
+          EXTRA_ARGS="${EXTRA_ARGS} --flannel-iface=${PRIVIF}"
+        fi
+        export INSTALL_K3S_EXEC="server${EXTRA_ARGS} --tls-san=${PUBIP} --disable traefik"
+        curl -sfL https://get.k3s.io | sh -
+---
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudServer
+metadata:
+  name: k3s-shape-agent-1
+  labels:
+    app.kubernetes.io/name: k3s-shape
+    role: k3s-agent
+spec:
+  serverType: cx23
+  image: ubuntu-22.04
+  location: fsn1
+  sshKeys:
+    - REPLACE_WITH_HETZNER_SSH_KEY_NAME
+  networkRef:
+    name: k3s-shape-private
+  labels:
+    app.kubernetes.io/name: k3s-shape
+    role: k3s-agent
+  userData: |
+    #cloud-config
+    package_update: true
+    packages:
+      - curl
+    runcmd:
+      - |
+        echo "k3s agent join configured post-provisioning with hack/configure-k3s-join-agents.sh"
+---
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudServer
+metadata:
+  name: k3s-shape-agent-2
+  labels:
+    app.kubernetes.io/name: k3s-shape
+    role: k3s-agent
+spec:
+  serverType: cx23
+  image: ubuntu-22.04
+  location: fsn1
+  sshKeys:
+    - REPLACE_WITH_HETZNER_SSH_KEY_NAME
+  networkRef:
+    name: k3s-shape-private
+  labels:
+    app.kubernetes.io/name: k3s-shape
+    role: k3s-agent
+  userData: |
+    #cloud-config
+    package_update: true
+    packages:
+      - curl
+    runcmd:
+      - |
+        echo "k3s agent join configured post-provisioning with hack/configure-k3s-join-agents.sh"
+---
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudLoadBalancer
+metadata:
+  name: k3s-shape-public
+  labels:
+    app.kubernetes.io/name: k3s-shape
+spec:
+  loadBalancerType: lb11
+  location: fsn1
+  algorithm: round_robin
+  serverSelector:
+    matchLabels:
+      app.kubernetes.io/name: k3s-shape
+      role: k3s-agent
+  labels:
+    app.kubernetes.io/name: k3s-shape
