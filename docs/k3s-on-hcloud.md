@@ -124,6 +124,7 @@ Order may delete the server before the network; the controller should detach/del
 | `config/samples/complex/k3s-single-node-private-net/k3s_single_node_private_net_v1alpha1.yaml` | Private network + single k3s server (recommended default). |
 | `config/samples/complex/k3s-single-node-public-only/k3s_single_node_public_only_v1alpha1.yaml` | Single server, **no** `HCloudNetwork`—minimal smoke test (Flannel over public/default routing). |
 | `config/samples/complex/k3s-multi-node-join/k3s_multi_node_join_v1alpha1.yaml` | Multi-node bootstrap template: one server plus agents, with post-provision join using `hack/configure-k3s-join-agents.sh k3s-join-server` (auto token fetch + agent label discovery). |
+| `config/samples/complex/k3s-cluster-shape/k3s_cluster_shape_v1alpha1.yaml` | Cluster-shaped composition sample (network + firewall + control plane + worker pool + optional LB) using existing HKIC CRDs. |
 
 Post-join verification helper:
 

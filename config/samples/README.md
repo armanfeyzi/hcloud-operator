@@ -45,6 +45,10 @@ Quick checks:
   - `kubectl apply -f config/samples/complex/hcloud-connected-services/hcloud_connected_services_v1alpha1.yaml`
 - Production-leaning blueprint:
   - `kubectl apply -f config/samples/complex/k3s-production-blueprint/k3s_production_blueprint_v1alpha1.yaml`
+- Cluster-shape composition (network + firewall + server/agents + LB):
+  - `kubectl apply -f config/samples/complex/k3s-cluster-shape/k3s_cluster_shape_v1alpha1.yaml`
+  - `hack/configure-k3s-join-agents.sh k3s-shape-server "app.kubernetes.io/name=k3s-shape,role=k3s-agent"`
+  - `hack/verify-k3s-join-cluster.sh k3s-shape-server`
 
 Quick checks:
 
@@ -87,6 +91,7 @@ Delete the specific sample file you applied, for example:
 - `complex/hcloud-stack/`
 - `complex/hcloud-connected-services/`
 - `complex/k3s-production-blueprint/`
+- `complex/k3s-cluster-shape/`
 - `complex/k3s-single-node-public-only/`
 - `complex/k3s-single-node-private-net/`
 - `complex/k3s-multi-node-join/`
