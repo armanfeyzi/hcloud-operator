@@ -6,7 +6,7 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" || $# -lt 2 ]]; then
 Export a remote k3s kubeconfig and store it as a Kubernetes Secret.
 
 Usage:
-  hack/export-k3s-kubeconfig-to-secret.sh <server-public-ip> <secret-name> [namespace] [ssh-key-path]
+  contrib/k3s-optional/export-k3s-kubeconfig-to-secret.sh <server-public-ip> <secret-name> [namespace] [ssh-key-path]
 
 Arguments:
   server-public-ip   Public IP of the k3s server node.
@@ -19,8 +19,8 @@ Behavior:
   2) Rewrites server URL from 127.0.0.1 to the provided public IP
   3) Creates/updates a Secret with key "config"
 
-Example:
-  hack/export-k3s-kubeconfig-to-secret.sh 91.107.142.178 k3s-join-kubeconfig kube-public ~/.ssh/id_ed25519
+Example (from repo root):
+  ./contrib/k3s-optional/export-k3s-kubeconfig-to-secret.sh 91.107.142.178 k3s-join-kubeconfig kube-public ~/.ssh/id_ed25519
 EOF
   exit 0
 fi

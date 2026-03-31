@@ -1,13 +1,18 @@
 # Cluster-shape composition sample for HKIC.
 #
+# REQUIRED before first apply (otherwise SSH join scripts fail with Permission denied):
+# - Replace REPLACE_WITH_HETZNER_SSH_KEY_NAME with your SSH key *name* from Hetzner Cloud
+#   (Security → SSH keys). Must match a key whose *private* file you pass to contrib/k3s-optional/*.sh scripts.
+# - If you already applied with a wrong/placeholder key, delete the HCloudServer objects and re-apply;
+#   Hetzner does not add keys after create.
+#
 # Edit before apply:
-# - Replace REPLACE_WITH_HETZNER_SSH_KEY_NAME on all servers.
 # - Restrict firewall sourceIPs for SSH/API to trusted CIDRs.
 #
 # Apply:
 #   kubectl apply -f config/samples/complex/k3s-cluster-shape/k3s_cluster_shape_v1alpha1.yaml
-#   hack/configure-k3s-join-agents.sh k3s-shape-server "app.kubernetes.io/name=k3s-shape,role=k3s-agent"
-#   hack/verify-k3s-join-cluster.sh k3s-shape-server
+#   contrib/k3s-optional/configure-k3s-join-agents.sh k3s-shape-server "app.kubernetes.io/name=k3s-shape,role=k3s-agent"
+#   contrib/k3s-optional/verify-k3s-join-cluster.sh k3s-shape-server
 ---
 apiVersion: infra.hkc.io/v1alpha1
 kind: HCloudNetwork
@@ -114,7 +119,7 @@ spec:
       - curl
     runcmd:
       - |
-        echo "k3s agent join configured post-provisioning with hack/configure-k3s-join-agents.sh"
+        echo "k3s agent join configured post-provisioning with contrib/k3s-optional/configure-k3s-join-agents.sh"
 ---
 apiVersion: infra.hkc.io/v1alpha1
 kind: HCloudServer
@@ -141,7 +146,7 @@ spec:
       - curl
     runcmd:
       - |
-        echo "k3s agent join configured post-provisioning with hack/configure-k3s-join-agents.sh"
+        echo "k3s agent join configured post-provisioning with contrib/k3s-optional/configure-k3s-join-agents.sh"
 ---
 apiVersion: infra.hkc.io/v1alpha1
 kind: HCloudLoadBalancer

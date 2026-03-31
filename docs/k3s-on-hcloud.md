@@ -2,6 +2,8 @@
 
 This guide shows how to provision a **single-node k3s** cluster using HKIC primitives: an `HCloudNetwork`, an `HCloudServer` with **cloud-init** (`spec.userData`), and your existing SSH keys in Hetzner Cloud. The pattern matches how tools like [hetzner-k3s](https://github.com/vitobotta/hetzner-k3s) think about networking and nodes—here the **data plane** is plain CRDs plus `userData`, not a separate CLI.
 
+Optional SSH/join/kubeconfig helpers referenced below live in **`contrib/k3s-optional/`** (see [README](../contrib/k3s-optional/README.md)); they are not part of the HKIC operator binary.
+
 ## What you get
 
 - One private network and one server attached to it (same idea as “private networking” in hetzner-k3s).
@@ -24,7 +26,7 @@ This guide shows how to provision a **single-node k3s** cluster using HKIC primi
 | **`userData`** | Applied by Hetzner **when the server is created**. Changing `spec.userData` on an existing `HCloudServer` does not re-run cloud-init. To change bootstrap, replace the server (new object or delete/recreate). |
 | **Image / location** | `spec.image` and `spec.location` are **immutable** after creation (API validation). |
 | **`HCloudFirewall`** | Available — see `HCloudFirewall` CRD and `config/samples/simple/hcloud-firewall/hcloud_firewall_v1alpha1.yaml`. Attach by `applyTo.serverRefs` (after `HCloudServer.status.serverID` exists) and/or `applyTo.labelSelector`. |
-| **HA / multi-node** | The default quickstart is **one server**. For multi-node bootstrap, use `config/samples/complex/k3s-multi-node-join/k3s_multi_node_join_v1alpha1.yaml` and run `hack/configure-k3s-join-agents.sh k3s-join-server` after the server is up (two-phase join flow with auto-discovery of agent CRs by label selector). |
+| **HA / multi-node** | The default quickstart is **one server**. For multi-node bootstrap, use `config/samples/complex/k3s-multi-node-join/k3s_multi_node_join_v1alpha1.yaml` and run `contrib/k3s-optional/configure-k3s-join-agents.sh k3s-join-server` after the server is up (two-phase join flow with auto-discovery of agent CRs by label selector). |
 | **Not hetzner-k3s** | CCM, CSI, Cluster Autoscaler, etc. are **not** installed by this sample—only k3s. See [Roadmap](roadmap.md) for Day-2 parity work. |
 
 ## Quick start
@@ -84,14 +86,14 @@ Avoid printing kubeconfig in controller logs. A safer pattern is:
 This repo includes a helper script:
 
 ```bash
-chmod +x hack/export-k3s-kubeconfig-to-secret.sh
-hack/export-k3s-kubeconfig-to-secret.sh <server-public-ip> <secret-name> [namespace] [ssh-key-path]
+chmod +x contrib/k3s-optional/export-k3s-kubeconfig-to-secret.sh
+contrib/k3s-optional/export-k3s-kubeconfig-to-secret.sh <server-public-ip> <secret-name> [namespace] [ssh-key-path]
 ```
 
 Example:
 
 ```bash
-hack/export-k3s-kubeconfig-to-secret.sh <status.publicIPv4> k3s-join-kubeconfig kube-public ~/.ssh/id_ed25519
+contrib/k3s-optional/export-k3s-kubeconfig-to-secret.sh <status.publicIPv4> k3s-join-kubeconfig kube-public ~/.ssh/id_ed25519
 ```
 
 Retrieve later:
@@ -123,19 +125,19 @@ Order may delete the server before the network; the controller should detach/del
 |------|---------|
 | `config/samples/complex/k3s-single-node-private-net/k3s_single_node_private_net_v1alpha1.yaml` | Private network + single k3s server (recommended default). |
 | `config/samples/complex/k3s-single-node-public-only/k3s_single_node_public_only_v1alpha1.yaml` | Single server, **no** `HCloudNetwork`—minimal smoke test (Flannel over public/default routing). |
-| `config/samples/complex/k3s-multi-node-join/k3s_multi_node_join_v1alpha1.yaml` | Multi-node bootstrap template: one server plus agents, with post-provision join using `hack/configure-k3s-join-agents.sh k3s-join-server` (auto token fetch + agent label discovery). |
+| `config/samples/complex/k3s-multi-node-join/k3s_multi_node_join_v1alpha1.yaml` | Multi-node bootstrap template: one server plus agents, with post-provision join using `contrib/k3s-optional/configure-k3s-join-agents.sh k3s-join-server` (auto token fetch + agent label discovery). |
 | `config/samples/complex/k3s-cluster-shape/k3s_cluster_shape_v1alpha1.yaml` | Cluster-shaped composition sample (network + firewall + control plane + worker pool + optional LB) using existing HKIC CRDs. |
 
 Post-join verification helper:
 
 ```bash
-hack/verify-k3s-join-cluster.sh k3s-join-server
+contrib/k3s-optional/verify-k3s-join-cluster.sh k3s-join-server
 ```
 
 Optional Day-2 smoke verification (after installing CCM + CSI):
 
 ```bash
-hack/verify-k3s-join-cluster.sh k3s-join-server 3 ~/.ssh/id_ed25519 600 true
+contrib/k3s-optional/verify-k3s-join-cluster.sh k3s-join-server 3 ~/.ssh/id_ed25519 600 true
 ```
 
 ## Next steps

@@ -3,7 +3,7 @@
 # This sample is intended as a practical join-flow starting point.
 # It is designed as a two-phase flow:
 # 1) apply infrastructure (network + server + agent VMs)
-# 2) configure/join agents using hack/configure-k3s-join-agents.sh
+# 2) configure/join agents using contrib/k3s-optional/configure-k3s-join-agents.sh
 #
 # Before apply:
 # - Replace REPLACE_WITH_HETZNER_SSH_KEY_NAME on all servers.
@@ -15,9 +15,9 @@
 # - `userData` runs only on first server creation. If you change bootstrap/join
 #   settings, recreate affected nodes.
 # - Agent nodes are provisioned first; run join script after server is up:
-#     hack/configure-k3s-join-agents.sh k3s-join-server
+#     contrib/k3s-optional/configure-k3s-join-agents.sh k3s-join-server
 # - Optional quick health check after join:
-#     hack/verify-k3s-join-cluster.sh k3s-join-server
+#     contrib/k3s-optional/verify-k3s-join-cluster.sh k3s-join-server
 ---
 apiVersion: infra.hkc.io/v1alpha1
 kind: HCloudNetwork
@@ -96,7 +96,7 @@ spec:
     runcmd:
       - |
         # Agent join is configured in phase-2 via:
-        # hack/configure-k3s-join-agents.sh
+        # contrib/k3s-optional/configure-k3s-join-agents.sh
         echo "k3s agent join is configured post-provisioning."
 ---
 apiVersion: infra.hkc.io/v1alpha1
@@ -125,5 +125,5 @@ spec:
     runcmd:
       - |
         # Agent join is configured in phase-2 via:
-        # hack/configure-k3s-join-agents.sh
+        # contrib/k3s-optional/configure-k3s-join-agents.sh
         echo "k3s agent join is configured post-provisioning."

@@ -92,8 +92,8 @@ For a one-master/two-worker shape:
 - Attach all servers to the same `networkRef`.
 - Apply `HCloudFirewall` rules for SSH/API and attach via labels or `serverRefs`.
 - Run bootstrap/join helpers:
-  - `hack/configure-k3s-join-agents.sh k3s-join-server`
-  - `hack/verify-k3s-join-cluster.sh k3s-join-server`
+  - `contrib/k3s-optional/configure-k3s-join-agents.sh k3s-join-server`
+  - `contrib/k3s-optional/verify-k3s-join-cluster.sh k3s-join-server`
 - Install Day-2 components from `docs/k3s-day2.md`.
 
 See sample:

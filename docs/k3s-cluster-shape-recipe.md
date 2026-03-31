@@ -36,15 +36,24 @@ It includes:
 
 ```bash
 kubectl apply -f config/samples/complex/k3s-cluster-shape/k3s_cluster_shape_v1alpha1.yaml
-hack/configure-k3s-join-agents.sh k3s-shape-server
-hack/verify-k3s-join-cluster.sh k3s-shape-server
+contrib/k3s-optional/configure-k3s-join-agents.sh k3s-shape-server
+contrib/k3s-optional/verify-k3s-join-cluster.sh k3s-shape-server
 ```
 
 Optional Day-2 verification (after CCM+CSI install):
 
 ```bash
-hack/verify-k3s-join-cluster.sh k3s-shape-server 3 ~/.ssh/id_ed25519 600 true
+contrib/k3s-optional/verify-k3s-join-cluster.sh k3s-shape-server 3 ~/.ssh/id_ed25519 600 true
 ```
+
+The join and verify scripts wait for **`status.state=running`**, then for **TCP port 22**, then for **SSH public-key auth**, and print progress every ~20–30s so a slow boot does not look hung.
+
+## Troubleshooting
+
+- **`ssh: connect to host … port 22: Connection refused`:** usually before `sshd` is up; the scripts retry automatically. If it never clears, check `kubectl get hcloudserver -o wide` and operator logs.
+- **“Stuck” on waiting for SSH:** you should now see periodic lines with `state=…` and `ipv4=…`. If you see **“Port 22 is open but SSH failed”** with `Permission denied (publickey)`, fix `spec.sshKeys` to the **exact SSH key name** in the Hetzner console and recreate the servers (cloud-init does not add keys after create).
+- **`Host key verification failed` with `BatchMode=yes`:** use `StrictHostKeyChecking=accept-new` so the first connection can store the host key non-interactively, for example:
+  `ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new -o BatchMode=yes root@<ip> 'echo ok'`
 
 ## Input knobs (edit before apply)
 

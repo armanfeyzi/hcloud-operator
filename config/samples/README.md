@@ -47,8 +47,8 @@ Quick checks:
   - `kubectl apply -f config/samples/complex/k3s-production-blueprint/k3s_production_blueprint_v1alpha1.yaml`
 - Cluster-shape composition (network + firewall + server/agents + LB):
   - `kubectl apply -f config/samples/complex/k3s-cluster-shape/k3s_cluster_shape_v1alpha1.yaml`
-  - `hack/configure-k3s-join-agents.sh k3s-shape-server "app.kubernetes.io/name=k3s-shape,role=k3s-agent"`
-  - `hack/verify-k3s-join-cluster.sh k3s-shape-server`
+  - `contrib/k3s-optional/configure-k3s-join-agents.sh k3s-shape-server "app.kubernetes.io/name=k3s-shape,role=k3s-agent"`
+  - `contrib/k3s-optional/verify-k3s-join-cluster.sh k3s-shape-server`
 
 Quick checks:
 
@@ -64,9 +64,9 @@ Quick checks:
   - `kubectl apply -f config/samples/complex/k3s-single-node-private-net/k3s_single_node_private_net_v1alpha1.yaml`
 - Multi-node join template (server + agents):
   - `kubectl apply -f config/samples/complex/k3s-multi-node-join/k3s_multi_node_join_v1alpha1.yaml`
-  - then: `hack/configure-k3s-join-agents.sh k3s-join-server` (auto-discovers agents by labels)
-  - verify base health: `hack/verify-k3s-join-cluster.sh k3s-join-server`
-  - verify with Day-2 smoke checks: `hack/verify-k3s-join-cluster.sh k3s-join-server 3 ~/.ssh/id_ed25519 600 true`
+  - then: `contrib/k3s-optional/configure-k3s-join-agents.sh k3s-join-server` (auto-discovers agents by labels)
+  - verify base health: `contrib/k3s-optional/verify-k3s-join-cluster.sh k3s-join-server`
+  - verify with Day-2 smoke checks: `contrib/k3s-optional/verify-k3s-join-cluster.sh k3s-join-server 3 ~/.ssh/id_ed25519 600 true`
 - Day-2 baseline (CCM + CSI):
   - `config/samples/complex/k3s-day2-ccm/README.md`
   - `config/samples/complex/k3s-day2-csi/README.md`

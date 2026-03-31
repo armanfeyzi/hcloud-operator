@@ -1,13 +1,15 @@
 # Project Roadmap
 
-The vision of the **Hetzner Kubernetes Infrastructure Controller (HKIC)** is to provide a comprehensive, Kubernetes-native infrastructure abstraction for Hetzner Cloud.
+The **primary** goal of **Hetzner Kubernetes Infrastructure Controller (HKIC)** is an **[ACK](https://aws.amazon.com/blogs/containers/aws-controllers-for-kubernetes-ack/)-style** experience for **Hetzner Cloud**: broad **CRD + reconciler** coverage so teams can declare cloud resources in Kubernetes and reconcile them with GitOps (Argo CD, Flux, and so on) like any other workload—**simple single resources and complex compositions** without a separate Hetzner-specific workflow for day-to-day changes.
+
+**Secondary (optional) goal:** document and sample how those **same CRDs** can be composed into **Kubernetes-on-Hetzner** outcomes comparable to [hetzner-k3s](https://github.com/vitobotta/hetzner-k3s)—bootstrap via `userData`, Day-2 manifests, optional join helpers in `contrib/k3s-optional/`—without turning that into a mandatory second product on top of the controllers.
 
 **Same page — two layers:**
 
-1. **Broad Hetzner Cloud coverage:** HKIC should keep gaining the ability to **create, configure, update, and delete** the Hetzner Cloud resource types people actually use (servers, networks, volumes, load balancers, firewalls, placement/labels, and so on), with users free to adopt **any subset** of controllers.
-2. **Kubernetes on Hetzner as a composition:** If someone wants a **Kubernetes cluster on Hetzner Cloud** comparable to what [hetzner-k3s](https://github.com/vitobotta/hetzner-k3s) provides, they should be able to achieve that **using HKIC’s controllers** (the same primitives, plus bootstrap and Day-2 docs/manifests), not only unrelated one-off VMs.
+1. **Hetzner Cloud API coverage (main track):** keep adding and hardening CRDs/reconcilers for the resource types teams actually use (servers, networks, volumes, load balancers, firewalls, …). Users may adopt **any subset**.
+2. **Composition and recipes (optional track):** samples, docs, and scripts that combine primitives for stacks—including k3s-style clusters—while keeping **one reconciler per concern**.
 
-The milestone below is the **cluster-shaped** slice of (2); Phases 1–3 are the expanding **surface** for (1).
+The milestone below is the **optional** cluster-shaped slice of (2); Phases 1–3 are the expanding **surface** for (1).
 
 ## Milestone: Parity with [hetzner-k3s](https://github.com/vitobotta/hetzner-k3s)
 
@@ -21,7 +23,7 @@ The milestone below is the **cluster-shaped** slice of (2); Phases 1–3 are the
 
 - [x] **k3s sample + doc** — [docs/k3s-on-hcloud.md](k3s-on-hcloud.md) and `config/samples/k3s_single_node_*_v1alpha1.yaml` (single-node server bootstrap via `spec.userData`; multi-node / automation TBD)
 - [x] **`HCloudFirewall`** CRD and reconciler (cluster firewall rules; attach via `serverRefs` and/or Hetzner `labelSelector`)
-- [x] **Node bootstrap** — extended beyond static samples with join/token automation helpers: `hack/configure-k3s-join-agents.sh` + verification runbook/script (`hack/verify-k3s-join-cluster.sh`) while keeping composable CRDs
+- [x] **Node bootstrap** — extended beyond static samples with join/token automation helpers in `contrib/k3s-optional/` (`configure-k3s-join-agents.sh`, `verify-k3s-join-cluster.sh`) while keeping composable CRDs
 - [x] **Cluster shape abstraction** — documented composition recipe + runnable sample mapping **masters pool + worker pools + networking + firewall + LB** to existing CRDs: [docs/k3s-cluster-shape-recipe.md](k3s-cluster-shape-recipe.md), `config/samples/complex/k3s-cluster-shape/k3s_cluster_shape_v1alpha1.yaml`
 - [ ] **Day-2 manifests** — versioned examples for Hetzner CCM, CSI, Cluster Autoscaler, System Upgrade Controller (as apply/kustomize/Helm), matching what `hetzner-k3s create` installs (**CCM + CSI samples/doc added; autoscaler + system-upgrade pending**)
 - [x] **Config mapping doc** — translate a representative `cluster.yaml` from hetzner-k3s into HKIC resources (field-by-field notes, gaps, extensions): [docs/hetzner-k3s-cluster-yaml-mapping.md](hetzner-k3s-cluster-yaml-mapping.md)

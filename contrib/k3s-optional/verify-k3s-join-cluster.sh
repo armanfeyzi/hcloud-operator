@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 usage() {
   cat <<'EOF'
 Verify a multi-node k3s cluster created by HKIC sample manifests.
 
 Usage:
-  hack/verify-k3s-join-cluster.sh <server-cr-name> [expected-node-count] [ssh-key-path] [timeout-seconds] [check-day2]
+  contrib/k3s-optional/verify-k3s-join-cluster.sh <server-cr-name> [expected-node-count] [ssh-key-path] [timeout-seconds] [check-day2]
 
 Defaults:
   server-cr-name: required
@@ -17,13 +19,14 @@ Defaults:
 
 Behavior:
   1) Resolves server public IP from HCloudServer status (waits until ready)
-  2) Runs health checks from the server using `k3s kubectl`
-  3) Waits for expected node count and Ready status, then checks core system pods
-  4) Optional: runs Day-2 smoke checks (StorageClass + CSI PVC/Pod + CCM LoadBalancer)
+  2) Waits for status.state=running, then SSH readiness (TCP :22 + public key auth)
+  3) Runs health checks from the server using `k3s kubectl`
+  4) Waits for expected node count and Ready status, then checks core system pods
+  5) Optional: runs Day-2 smoke checks (StorageClass + CSI PVC/Pod + CCM LoadBalancer)
 
-Example:
-  hack/verify-k3s-join-cluster.sh k3s-join-server
-  hack/verify-k3s-join-cluster.sh k3s-join-server 3 ~/.ssh/id_ed25519 600 true
+Examples (from repo root):
+  ./contrib/k3s-optional/verify-k3s-join-cluster.sh k3s-join-server
+  ./contrib/k3s-optional/verify-k3s-join-cluster.sh k3s-join-server 3 ~/.ssh/id_ed25519 600 true
 EOF
 }
 
@@ -58,20 +61,10 @@ if [[ "$CHECK_DAY2" != "true" && "$CHECK_DAY2" != "false" ]]; then
   exit 1
 fi
 
-wait_for_public_ip() {
-  local server_name="$1"
-  local deadline=$((SECONDS + TIMEOUT_SECONDS))
-  local ip=""
-  while (( SECONDS < deadline )); do
-    ip="$(kubectl get hcloudserver "$server_name" -o jsonpath='{.status.publicIPv4}' 2>/dev/null || true)"
-    if [[ -n "$ip" ]]; then
-      echo "$ip"
-      return 0
-    fi
-    sleep 5
-  done
-  return 1
-}
+# shellcheck source=k3s-remote-common.inc.sh
+source "$SCRIPT_DIR/k3s-remote-common.inc.sh"
+
+assert_hcloudserver_ssh_keys_look_sane "$SERVER_CR" || exit 1
 
 echo "Resolving server IP from $SERVER_CR..."
 SERVER_PUBLIC_IP="$(wait_for_public_ip "$SERVER_CR")" || {
@@ -81,8 +74,11 @@ SERVER_PUBLIC_IP="$(wait_for_public_ip "$SERVER_CR")" || {
 
 echo "Using server: $SERVER_CR ($SERVER_PUBLIC_IP)"
 
+wait_for_hcloudserver_running "$SERVER_CR" || exit 1
+wait_for_ssh_ready "$SERVER_PUBLIC_IP" "$SERVER_CR" "$SERVER_CR" || exit 1
+
 remote() {
-  ssh -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=accept-new "root@$SERVER_PUBLIC_IP" "$@"
+  ssh "${SSH_BASE_OPTS[@]}" "root@$SERVER_PUBLIC_IP" "$@"
 }
 
 echo "Checking k3s control plane response..."
@@ -117,7 +113,7 @@ remote "k3s kubectl get nodes -o wide"
 
 if [[ "$CHECK_DAY2" == "true" ]]; then
   echo "Running Day-2 smoke checks (CSI + CCM)..."
-  ssh -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=accept-new "root@$SERVER_PUBLIC_IP" \
+  ssh "${SSH_BASE_OPTS[@]}" "root@$SERVER_PUBLIC_IP" \
     "TIMEOUT_SECONDS=$TIMEOUT_SECONDS bash -s" <<'EOF'
 set -euo pipefail
 

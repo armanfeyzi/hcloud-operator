@@ -1,24 +1,34 @@
 # Hetzner Kubernetes Infrastructure Controller (HKIC)
 
-HKIC is a Kubernetes-native infrastructure controller that allows you to manage Hetzner Cloud resources directly from your Kubernetes cluster using Custom Resource Definitions (CRDs).
+HKIC is a **Kubernetes-native controller for Hetzner Cloud**, in the same spirit as **[AWS Controllers for Kubernetes (ACK)](https://aws.amazon.com/blogs/containers/aws-controllers-for-kubernetes-ack/)**: you declare Hetzner resources as **CRDs**, the operator reconciles them against the **Hetzner API**, and you read back **observed state in `status`**—no Hetzner-specific CLI required for day-to-day use.
 
-**Scope:** grow a **wide** set of reconcilers so you can create and configure **many** Hetzner Cloud resource kinds—not only one workflow. **Included in that vision:** standing up a **Kubernetes cluster on Hetzner** (k3s-style, similar to [hetzner-k3s](https://github.com/vitobotta/hetzner-k3s)) by **composing** those controllers, when that is what you need.
+### What you can do (simple → advanced)
 
-Instead of relying on external tools like Terraform or the Hetzner CLI, you can define your infrastructure declaratively as Kubernetes YAML objects. The HKIC operator runs inside your cluster, constantly watching these objects, and automatically reconciles your desired state with the actual infrastructure running in Hetzner Cloud.
+1. **Single resources** — e.g. one `HCloudServer`, one `HCloudVolume`, one `HCloudNetwork` (same GitOps patterns as any other Kubernetes object).
+2. **Composed stacks** — `config/samples/complex/*` shows how to wire primitives together (server + network + volume + load balancer + firewall).
+3. **Optional: Kubernetes on Hetzner** — still **using the same CRDs** (`HCloudServer` + `userData`, networks, firewalls, …), with docs/samples that approximate what [hetzner-k3s](https://github.com/vitobotta/hetzner-k3s) gives you. That path is **composition and documentation**, not a second product hiding the CRDs.
+
+### GitOps and Argo CD (why this is not “just hetzner-k3s”)
+
+Because everything is normal Kubernetes API objects, you can put HKIC resources in the **same GitOps repo and Argo CD Applications** as your applications: diff, sync, rollback, and observe health in the **same dashboards and workflows** you already use for apps. Infra is not a one-off CLI run—it is versioned, reviewable, and continuous, whether you deploy one server or a full cluster-shaped stack.
+
+The operator runs in your management cluster, watches those CRDs, and converges Hetzner Cloud to match.
 
 ## Inspiration and Vision
 
-The long-term vision of this project is to build a lightweight, Kubernetes-native infrastructure layer specifically tailored for Hetzner Cloud. 
+Primary inspiration:
 
-This project draws heavy inspiration from:
-- **AWS Controllers for Kubernetes (ACK):** The concept of managing cloud-native infrastructure directly through the Kubernetes API.
-- **Crossplane:** The abstraction of infrastructure management within Kubernetes, but without the multi-cloud complexity.
-- **The Kubernetes Operator Pattern:** Leveraging reconciliation loops to maintain desired state.
-- **[hetzner-k3s](https://github.com/vitobotta/hetzner-k3s):** Reference for what a solid **k3s-on-Hetzner** cluster looks like (networking, pools, security, bootstrap, Day-2 add-ons). HKIC aims to cover the **same major Hetzner Cloud components and configs** so you can **deploy, reconfigure, and delete** that class of cluster via CRDs and GitOps—not only ad-hoc VMs.
+- **[AWS Controllers for Kubernetes (ACK)](https://aws.amazon.com/blogs/containers/aws-controllers-for-kubernetes-ack/):** one cloud, many resource kinds, each reconciled through the Kubernetes API.
+- **The Kubernetes operator pattern:** idempotent reconcile loops, finalizers, and status.
 
-**How it fits together:** controllers stay **modular** (servers, networks, volumes, load balancers, firewalls, …). You can use one resource type alone or compose them for a full cluster; optional recipes (Helm, kro, samples) stitch the same primitives into an experience similar to `hetzner-k3s create`. See `docs/roadmap.md`.
+Related ideas (not the core product definition):
 
-The goal is not to replace massive multi-cloud tools like Terraform, but rather to provide a focused, lightweight, and tightly integrated experience for users who are already heavily invested in the Kubernetes ecosystem and want to provision Hetzner resources (like Servers and Volumes) without leaving `kubectl`.
+- **Crossplane-style composition** — optional; HKIC stays useful as plain CRDs.
+- **[hetzner-k3s](https://github.com/vitobotta/hetzner-k3s):** a **benchmark** for “what a good k3s-on-Hetzner stack often includes,” not a runtime dependency. We converge on coverage of the **Hetzner building blocks** and optional recipes, not on cloning the CLI UX.
+
+**How it fits together:** one reconciler per concern (`HCloudServer`, `HCloudNetwork`, …). You adopt only what you need. See `docs/roadmap.md` for API coverage and optional cluster-shaped work.
+
+The goal is not to replace every multi-cloud tool, but to give teams that already live in **Kubernetes + GitOps** a first-class way to own **Hetzner infrastructure** the same way they own workloads.
 
 ### Platform Engineering & KRO Compatibility
 
@@ -42,6 +52,12 @@ You can combine HKIC with orchestrators like [Kube Resource Orchestrator (kro)](
 - **Load Balancers (`HCloudLoadBalancer`):** Expose selected servers through a public Hetzner Load Balancer using `serverSelector` label matching.
 - **Firewalls (`HCloudFirewall`):** Define Hetzner Cloud firewall rules and attach to servers by `HCloudServer` reference and/or a Hetzner label selector.
 - **Idempotent Operations:** The controller is designed to handle API interruptions safely without creating duplicate infrastructure.
+
+## Where to start
+
+- **ACK-style use (single resources):** `config/samples/simple/` and [CRD reference](docs/crds.md).
+- **Composed Hetzner stacks:** [Sample index](config/samples/README.md) and e.g. `config/samples/complex/hcloud-stack/`.
+- **Optional k3s / bootstrap helpers:** [k3s on Hetzner](docs/k3s-on-hcloud.md) and [contrib/k3s-optional/](contrib/k3s-optional/README.md) are **convenience** around `spec.userData` and SSH—they are **not** required to operate the controller or to manage primitives via GitOps.
 
 ## Quick Start
 
@@ -183,6 +199,7 @@ kubectl get hcs,hcv,hclb
 - [CRD Reference](docs/crds.md)
 - [Development Guide](docs/development.md)
 - [k3s on Hetzner with HKIC](docs/k3s-on-hcloud.md) — cloud-init sample cluster
+- [Optional k3s SSH / join scripts](contrib/k3s-optional/README.md) — cookbook only, not part of the operator
 - [k3s Day-2 (CCM + CSI)](docs/k3s-day2.md)
 - [hetzner-k3s `cluster.yaml` -> HKIC mapping](docs/hetzner-k3s-cluster-yaml-mapping.md)
 - [k3s cluster-shape composition recipe](docs/k3s-cluster-shape-recipe.md)
