@@ -17,10 +17,14 @@ Defaults:
   timeout-seconds: 600
 
 Behavior:
-  1) Resolves server and agent public IPs from HCloudServer status
-  2) Waits for status.state=running, then TCP :22, then SSH public-key auth
+  1) Validates spec.sshKeys on server + agents (fails fast on empty/REPLACE_* before any SSH wait)
+  2) Resolves server public IP, waits for running + SSH
   3) Reads server node token + private IP via SSH from server
   4) Installs/reconfigures k3s-agent on each discovered agent with real server URL/token
+
+Environment:
+  HKC_KUBECONFIG   If KUBECONFIG points at a workload kubeconfig (e.g. ./k3s-hc.yaml), set this to the
+                   kubeconfig path for the cluster that hosts HCloudServer CRs (e.g. "$HOME/.kube/config").
 
 Examples (from repo root):
   ./contrib/k3s-optional/configure-k3s-join-agents.sh k3s-join-server
@@ -46,17 +50,8 @@ fi
 # shellcheck source=k3s-remote-common.inc.sh
 source "$SCRIPT_DIR/k3s-remote-common.inc.sh"
 
-echo "Resolving server IP from $SERVER_CR..."
-SERVER_PUBLIC_IP="$(wait_for_public_ip "$SERVER_CR")" || {
-  echo "Server $SERVER_CR has no status.publicIPv4 after ${TIMEOUT_SECONDS}s." >&2
-  exit 1
-}
-
-wait_for_hcloudserver_running "$SERVER_CR" || exit 1
-wait_for_ssh_ready "$SERVER_PUBLIC_IP" "$SERVER_CR" "$SERVER_CR" || exit 1
-
 if [[ -z "$AGENT_SELECTOR" ]]; then
-  server_app_name="$(kubectl get hcloudserver "$SERVER_CR" -o jsonpath='{.metadata.labels.app\.kubernetes\.io/name}' 2>/dev/null || true)"
+  server_app_name="$(hkc_kubectl get hcloudserver "$SERVER_CR" -o jsonpath='{.metadata.labels.app\.kubernetes\.io/name}' 2>/dev/null || true)"
   if [[ -n "$server_app_name" ]]; then
     AGENT_SELECTOR="app.kubernetes.io/name=${server_app_name},role=k3s-agent"
   else
@@ -64,7 +59,7 @@ if [[ -z "$AGENT_SELECTOR" ]]; then
   fi
 fi
 
-AGENT_CRS_RAW="$(kubectl get hcloudserver -l "$AGENT_SELECTOR" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}')"
+AGENT_CRS_RAW="$(hkc_kubectl get hcloudserver -l "$AGENT_SELECTOR" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}')"
 if [[ -z "$AGENT_CRS_RAW" ]]; then
   echo "No agent HCloudServer resources found with selector: $AGENT_SELECTOR" >&2
   exit 1
@@ -86,6 +81,15 @@ fi
 for _ssh_cr in "$SERVER_CR" "${AGENT_CRS[@]}"; do
   assert_hcloudserver_ssh_keys_look_sane "$_ssh_cr" || exit 1
 done
+
+echo "Resolving server IP from $SERVER_CR..."
+SERVER_PUBLIC_IP="$(wait_for_public_ip "$SERVER_CR")" || {
+  echo "Server $SERVER_CR has no status.publicIPv4 after ${TIMEOUT_SECONDS}s." >&2
+  exit 1
+}
+
+wait_for_hcloudserver_running "$SERVER_CR" || exit 1
+wait_for_ssh_ready "$SERVER_PUBLIC_IP" "$SERVER_CR" "$SERVER_CR" || exit 1
 
 echo "Fetching server token/private IP from $SERVER_CR ($SERVER_PUBLIC_IP)..."
 SERVER_TOKEN="$(ssh "${SSH_BASE_OPTS[@]}" "root@$SERVER_PUBLIC_IP" "cat /var/lib/rancher/k3s/server/node-token")"

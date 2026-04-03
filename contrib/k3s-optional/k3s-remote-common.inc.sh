@@ -1,6 +1,17 @@
 # Shared helpers for contrib/k3s-optional/configure-k3s-join-agents.sh and contrib/k3s-optional/verify-k3s-join-cluster.sh
 # shellcheck shell=bash
 
+# kubectl calls in this file target the cluster that hosts HCloudServer CRs (HKIC / kind).
+# If your shell has KUBECONFIG pointed at a workload file (e.g. ./k3s-hc.yaml), set:
+#   export HKC_KUBECONFIG="$HOME/.kube/config"
+hkc_kubectl() {
+  if [[ -n "${HKC_KUBECONFIG:-}" ]]; then
+    command kubectl --kubeconfig "$HKC_KUBECONFIG" "$@"
+  else
+    command kubectl "$@"
+  fi
+}
+
 : "${SSH_KEY_PATH:?}"
 : "${TIMEOUT_SECONDS:?}"
 
@@ -29,7 +40,7 @@ SSH_BASE_OPTS=(
 assert_hcloudserver_ssh_keys_look_sane() {
   local cr="$1"
   local keys=""
-  keys="$(kubectl get hcloudserver "$cr" -o jsonpath='{.spec.sshKeys[*]}' 2>/dev/null || true)"
+  keys="$(hkc_kubectl get hcloudserver "$cr" -o jsonpath='{.spec.sshKeys[*]}' 2>/dev/null || true)"
   if [[ -z "${keys// }" ]]; then
     cat >&2 <<EOF2
 HCloudServer ${cr} has empty spec.sshKeys.
@@ -41,7 +52,10 @@ EOF2
   if [[ "$keys" == *REPLACE_* ]]; then
     cat >&2 <<EOF2
 HCloudServer ${cr} still uses a placeholder in spec.sshKeys (${keys}).
-Replace it with your real Hetzner SSH key name, then delete/recreate the server (userData/keys are fixed at creation).
+This is whatever the cluster object currently has (kubectl get), not your shell arguments: fix every HCloudServer in your manifest,
+then delete and recreate those servers so Hetzner applies keys at create time.
+
+Check cluster: kubectl get hcloudserver ${cr} -o jsonpath='{.spec.sshKeys}{"\n"}'
 EOF2
     return 1
   fi
@@ -80,7 +94,7 @@ wait_for_public_ip() {
   local deadline=$((SECONDS + TIMEOUT_SECONDS))
   local ip=""
   while (( SECONDS < deadline )); do
-    ip="$(kubectl get hcloudserver "$server_name" -o jsonpath='{.status.publicIPv4}' 2>/dev/null || true)"
+    ip="$(hkc_kubectl get hcloudserver "$server_name" -o jsonpath='{.status.publicIPv4}' 2>/dev/null || true)"
     if [[ -n "$ip" ]]; then
       echo "$ip"
       return 0
@@ -98,7 +112,7 @@ wait_for_hcloudserver_running() {
   local last_progress="$SECONDS"
   echo "Waiting for $server_name status.state=running..."
   while (( SECONDS < deadline )); do
-    state="$(kubectl get hcloudserver "$server_name" -o jsonpath='{.status.state}' 2>/dev/null || true)"
+    state="$(hkc_kubectl get hcloudserver "$server_name" -o jsonpath='{.status.state}' 2>/dev/null || true)"
     if [[ "$state" == "running" ]]; then
       return 0
     fi
@@ -127,7 +141,7 @@ wait_for_ssh_ready() {
   while (( SECONDS < deadline )); do
     local hint=""
     if [[ -n "$cr_name" ]]; then
-      hint="$(kubectl get hcloudserver "$cr_name" -o jsonpath='{.metadata.name}: state={.status.state} ipv4={.status.publicIPv4}' 2>/dev/null || true)"
+      hint="$(hkc_kubectl get hcloudserver "$cr_name" -o jsonpath='{.metadata.name}: state={.status.state} ipv4={.status.publicIPv4}' 2>/dev/null || true)"
     fi
 
     if tcp_port_open "$host_ip" 22; then

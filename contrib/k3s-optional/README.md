@@ -4,6 +4,8 @@ These scripts support **advanced** [k3s on Hetzner](../../docs/k3s-on-hcloud.md)
 
 They are **not** required to install or run HKIC, and they are **not** reconciled by the operator. Treat them like cookbook utilities next to the CRDs.
 
+If you `export KUBECONFIG=./k3s-hc.yaml` for the workload cluster, scripts that call `kubectl get hcloudserver` need the **management** API too. Set **`HKC_KUBECONFIG`** to that kubeconfig path (for example `"$HOME/.kube/config"`) in the same shell before running `configure-k3s-join-agents.sh`, `verify-k3s-join-cluster.sh`, or `export-k3s-kubeconfig-to-secret.sh`.
+
 | Script | Purpose |
 |--------|---------|
 | `configure-k3s-join-agents.sh` | After multi-node samples are applied, SSH to server/agents and configure k3s agent join. |

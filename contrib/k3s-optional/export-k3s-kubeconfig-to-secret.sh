@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# kubectl for the cluster that should receive the Secret (HKIC / kind). If KUBECONFIG is a workload file, set HKC_KUBECONFIG.
+hkc_kubectl() {
+  if [[ -n "${HKC_KUBECONFIG:-}" ]]; then
+    command kubectl --kubeconfig "$HKC_KUBECONFIG" "$@"
+  else
+    command kubectl "$@"
+  fi
+}
+
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" || $# -lt 2 ]]; then
   cat <<'EOF'
 Export a remote k3s kubeconfig and store it as a Kubernetes Secret.
@@ -17,7 +26,7 @@ Arguments:
 Behavior:
   1) Copies /etc/rancher/k3s/k3s.yaml from the server via SCP
   2) Rewrites server URL from 127.0.0.1 to the provided public IP
-  3) Creates/updates a Secret with key "config"
+  3) Creates/updates a Secret with key "config" (uses kubectl; set HKC_KUBECONFIG if KUBECONFIG points at ./k3s-hc.yaml)
 
 Example (from repo root):
   ./contrib/k3s-optional/export-k3s-kubeconfig-to-secret.sh 91.107.142.178 k3s-join-kubeconfig kube-public ~/.ssh/id_ed25519
@@ -46,10 +55,10 @@ echo "Rewriting kubeconfig server endpoint..."
 sed -i "s|https://127.0.0.1:6443|https://${SERVER_IP}:6443|g" "$TMP_CONFIG"
 
 echo "Creating/updating Secret ${NAMESPACE}/${SECRET_NAME}..."
-kubectl create secret generic "$SECRET_NAME" \
+hkc_kubectl create secret generic "$SECRET_NAME" \
   -n "$NAMESPACE" \
   --from-file=config="$TMP_CONFIG" \
-  --dry-run=client -o yaml | kubectl apply -f -
+  --dry-run=client -o yaml | hkc_kubectl apply -f -
 
 echo "Done."
 echo "Test with:"

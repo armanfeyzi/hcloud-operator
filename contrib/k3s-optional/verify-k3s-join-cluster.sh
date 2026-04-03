@@ -21,6 +21,9 @@ Behavior:
   1) Resolves server public IP from HCloudServer status (waits until ready)
   2) Waits for status.state=running, then SSH readiness (TCP :22 + public key auth)
   3) Runs health checks from the server using `k3s kubectl`
+
+Environment:
+  HKC_KUBECONFIG   If KUBECONFIG points at a workload kubeconfig, set this to the management cluster kubeconfig (e.g. "$HOME/.kube/config").
   4) Waits for expected node count and Ready status, then checks core system pods
   5) Optional: runs Day-2 smoke checks (StorageClass + CSI PVC/Pod + CCM LoadBalancer)
 
