@@ -1,0 +1,20 @@
+# Upgrade k3s on control-plane nodes first. Edit spec.upgrade.version before apply.
+# Namespace must match system-upgrade-controller (default: system-upgrade).
+apiVersion: upgrade.cattle.io/v1
+kind: Plan
+metadata:
+  name: k3s-server
+  namespace: system-upgrade
+spec:
+  concurrency: 1
+  cordon: true
+  nodeSelector:
+    matchExpressions:
+      - key: node-role.kubernetes.io/control-plane
+        operator: In
+        values:
+          - "true"
+  serviceAccountName: system-upgrade
+  upgrade:
+    image: rancher/k3s-upgrade
+    version: v1.35.4+k3s1

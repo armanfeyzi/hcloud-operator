@@ -27,7 +27,7 @@ Optional SSH/join/kubeconfig helpers referenced below live in **`contrib/k3s-opt
 | **Image / location** | `spec.image` and `spec.location` are **immutable** after creation (API validation). |
 | **`HCloudFirewall`** | Available — see `HCloudFirewall` CRD and `config/samples/simple/hcloud-firewall/hcloud_firewall_v1alpha1.yaml`. Attach by `applyTo.serverRefs` (after `HCloudServer.status.serverID` exists) and/or `applyTo.labelSelector`. |
 | **HA / multi-node** | The default quickstart is **one server**. For multi-node bootstrap, use `config/samples/complex/k3s-multi-node-join/k3s_multi_node_join_v1alpha1.yaml` and run `contrib/k3s-optional/configure-k3s-join-agents.sh k3s-join-server` after the server is up (two-phase join flow with auto-discovery of agent CRs by label selector). |
-| **Not hetzner-k3s** | CCM, CSI, Cluster Autoscaler, etc. are **not** installed by this sample—only k3s. See [Roadmap](roadmap.md) for Day-2 parity work. |
+| **Not hetzner-k3s** | CCM, CSI, Cluster Autoscaler, SUC, etc. are **not** installed by infra samples—only k3s `userData`. Install separately; see [k3s Day-2](k3s-day2.md) and `config/samples/complex/k3s-day2-*`. |
 
 ## Quick start
 

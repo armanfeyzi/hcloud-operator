@@ -1,0 +1,35 @@
+# Example values fragment for autoscaler/cluster-autoscaler (Hetzner).
+# Copy to values-hetzner.local.yaml (gitignored locally), edit, then:
+#   helm upgrade --install cluster-autoscaler autoscaler/cluster-autoscaler -n kube-system -f values-hetzner.local.yaml
+#
+# Chart API evolves — always run: helm show values autoscaler/cluster-autoscaler
+#
+# - Set image.tag to a cluster-autoscaler release matching your Kubernetes minor.
+# - Set extraArgs.nodes to pools per upstream:
+#   https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/cloudprovider/hetzner/README.md
+# - Provide HCLOUD_CLUSTER_CONFIG (base64 JSON) or legacy HCLOUD_CLOUD_INIT / HCLOUD_IMAGE per upstream.
+
+cloudProvider: hetzner
+
+extraArgs:
+  stderrthreshold: info
+  # min:max:serverType:location:poolName
+  nodes: "1:5:cx23:fsn1:hkic-autoscale-pool"
+
+extraEnv:
+  HCLOUD_TOKEN:
+    valueFrom:
+      secretKeyRef:
+        name: hcloud
+        key: token
+  # Example: wire a Secret you created with base64-encoded HCLOUD_CLUSTER_CONFIG JSON (see README).
+  # HCLOUD_CLUSTER_CONFIG:
+  #   valueFrom:
+  #     secretKeyRef:
+  #       name: hcloud-cluster-autoscaler-config
+  #       key: cluster-config
+
+rbac:
+  serviceAccount:
+    create: true
+    name: cluster-autoscaler

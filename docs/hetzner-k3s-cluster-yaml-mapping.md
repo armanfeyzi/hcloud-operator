@@ -55,7 +55,7 @@ csi_driver:
 2. `HCloudServer` for each master/worker node (type, location, image, SSH keys, cloud-init bootstrap).
 3. `HCloudFirewall` for API/SSH restrictions and server attachment.
 4. `HCloudLoadBalancer` for Hetzner LB lifecycle and server target selection.
-5. Day-2 manifests for CCM/CSI (and later autoscaler/upgrade controller).
+5. Day-2 manifests for CCM, CSI, optional Cluster Autoscaler, and System Upgrade Controller (`docs/k3s-day2.md`).
 
 ## Field-by-field mapping
 
@@ -78,8 +78,8 @@ csi_driver:
 | load balancer enabled/type | `HCloudLoadBalancer.spec.loadBalancerType` | Covered | Targets synced from server labels via selector. |
 | CCM enabled | Day-2 manifests (`docs/k3s-day2.md`) | Covered | Installed separately from infra CRDs. |
 | CSI enabled | Day-2 manifests (`docs/k3s-day2.md`) | Covered | Installed separately from infra CRDs. |
-| Cluster Autoscaler | Planned Day-2 manifests | Gap | On roadmap. |
-| System Upgrade Controller | Planned Day-2 manifests | Gap | On roadmap. |
+| Cluster Autoscaler | `config/samples/complex/k3s-day2-cluster-autoscaler/README.md` | Partial | Upstream Hetzner provider creates servers via API; coordinate with `HCloudServer` GitOps (see README). |
+| System Upgrade Controller | `config/samples/complex/k3s-day2-system-upgrade/README.md` | Covered | SUC + k3s `Plan` samples; in-cluster upgrades independent of HKIC. |
 
 ## Practical translation pattern
 
@@ -106,7 +106,7 @@ Current gaps versus a single `cluster.yaml` UX:
 
 1. No first-class node pool CRD (`count/min/max`) yet.
 2. No dedicated typed API for k3s version/CNI; currently cloud-init driven.
-3. Autoscaler and upgrade controller samples are not complete yet.
+3. Cluster Autoscaler integration with **HKIC-owned** node pools is operational documentation only; GitOps-native scale-out remains “add/remove `HCloudServer` workers”.
 
 Planned direction (roadmap-aligned):
 

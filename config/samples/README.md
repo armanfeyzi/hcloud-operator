@@ -67,9 +67,11 @@ Quick checks:
   - then: `contrib/k3s-optional/configure-k3s-join-agents.sh k3s-join-server` (auto-discovers agents by labels)
   - verify base health: `contrib/k3s-optional/verify-k3s-join-cluster.sh k3s-join-server`
   - verify with Day-2 smoke checks: `contrib/k3s-optional/verify-k3s-join-cluster.sh k3s-join-server 3 ~/.ssh/id_ed25519 600 true`
-- Day-2 baseline (CCM + CSI):
+- Day-2 baseline (CCM + CSI) and optional parity add-ons:
   - `config/samples/complex/k3s-day2-ccm/README.md`
   - `config/samples/complex/k3s-day2-csi/README.md`
+  - `config/samples/complex/k3s-day2-cluster-autoscaler/README.md` (Hetzner cluster-autoscaler; read HKIC note)
+  - `config/samples/complex/k3s-day2-system-upgrade/README.md` (k3s System Upgrade Controller)
 
 See `docs/k3s-on-hcloud.md` for full flow and kubeconfig usage.
 
@@ -97,3 +99,5 @@ Delete the specific sample file you applied, for example:
 - `complex/k3s-multi-node-join/`
 - `complex/k3s-day2-ccm/`
 - `complex/k3s-day2-csi/`
+- `complex/k3s-day2-cluster-autoscaler/`
+- `complex/k3s-day2-system-upgrade/`
