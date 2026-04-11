@@ -62,3 +62,7 @@ The milestone below is the **optional** cluster-shaped slice of (2); Phases 1–
 ## Hygiene & contributor experience
 - [x] Envtest isolation: drain cluster CRs + reset shared `FakeClient` between Ginkgo specs (random order safe)
 - [x] Keep **`.idea/project-idea.md`** and **`.idea/AGENT_*.md`** aligned with README / roadmap when major features land (north star: hetzner-k3s parity)
+
+## GitHub tracking
+
+Work is tracked on GitHub under **[Milestones](https://github.com/armanfeyzi/hcloud-operator/milestones)** (for example **HKIC: Hetzner Cloud CRD coverage**, **HKIC: Operator & GitOps platform**, **HKIC: Parity & verification**) and matching issues.
