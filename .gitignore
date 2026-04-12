@@ -33,3 +33,6 @@ go.work.sum
 
 # Operator binaries and downloaded tools
 bin/
+
+# cursor
+.cursor/
