@@ -295,6 +295,25 @@ func (r *HCloudServerReconciler) ensureServerNetworkAttachment(
 		return true, nil
 	}
 	obj.Status.AppliedNetworkID = network.Status.NetworkID
+	cond := meta.FindStatusCondition(obj.Status.Conditions, conditionTypeReady)
+	switch {
+	case migrated && (cond == nil || cond.Reason != readyReasonNetworkMigrated):
+		r.setCondition(
+			obj,
+			conditionTypeReady,
+			metav1.ConditionTrue,
+			readyReasonNetworkMigrated,
+			fmt.Sprintf("Migrated server private network attachment to %q", network.Name),
+		)
+	case !migrated && (cond == nil || (cond.Reason != readyReasonNetworkAttached && cond.Reason != readyReasonNetworkMigrated)):
+		r.setCondition(
+			obj,
+			conditionTypeReady,
+			metav1.ConditionTrue,
+			readyReasonNetworkAttached,
+			fmt.Sprintf("Attached server to private network %q", network.Name),
+		)
+	}
 	return false, nil
 }
 
