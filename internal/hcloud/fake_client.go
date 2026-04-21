@@ -11,13 +11,14 @@ import (
 // FakeClient is an in-memory implementation of Interface for use in tests.
 // All operations are goroutine-safe and stored in a simple map keyed by server ID.
 type FakeClient struct {
-	mu            sync.Mutex
-	servers       map[int64]*ServerInfo
-	volumes       map[int64]*VolumeInfo
-	loadBalancers map[int64]*LoadBalancerInfo
-	networks      map[int64]*NetworkInfo
-	firewalls     map[int64]*FirewallInfo
-	nextID        int64
+	mu              sync.Mutex
+	servers         map[int64]*ServerInfo
+	volumes         map[int64]*VolumeInfo
+	loadBalancers   map[int64]*LoadBalancerInfo
+	networks        map[int64]*NetworkInfo
+	firewalls       map[int64]*FirewallInfo
+	placementGroups map[int64]*PlacementGroupInfo
+	nextID          int64
 
 	// CreateErr, if non-nil, is returned by every CreateServer call.
 	CreateErr error
@@ -30,12 +31,13 @@ type FakeClient struct {
 // NewFakeClient returns an empty FakeClient ready for use in tests.
 func NewFakeClient() *FakeClient {
 	return &FakeClient{
-		servers:       make(map[int64]*ServerInfo),
-		volumes:       make(map[int64]*VolumeInfo),
-		loadBalancers: make(map[int64]*LoadBalancerInfo),
-		networks:      make(map[int64]*NetworkInfo),
-		firewalls:     make(map[int64]*FirewallInfo),
-		nextID:        1,
+		servers:         make(map[int64]*ServerInfo),
+		volumes:         make(map[int64]*VolumeInfo),
+		loadBalancers:   make(map[int64]*LoadBalancerInfo),
+		networks:        make(map[int64]*NetworkInfo),
+		firewalls:       make(map[int64]*FirewallInfo),
+		placementGroups: make(map[int64]*PlacementGroupInfo),
+		nextID:          1,
 	}
 }
 
@@ -48,6 +50,7 @@ func (f *FakeClient) Reset() {
 	f.loadBalancers = make(map[int64]*LoadBalancerInfo)
 	f.networks = make(map[int64]*NetworkInfo)
 	f.firewalls = make(map[int64]*FirewallInfo)
+	f.placementGroups = make(map[int64]*PlacementGroupInfo)
 	f.nextID = 1
 	f.CreateErr = nil
 	f.GetErr = nil
@@ -102,13 +105,14 @@ func (f *FakeClient) CreateServer(ctx context.Context, opts ServerCreateOpts) (*
 	f.nextID++
 
 	info := &ServerInfo{
-		ID:         id,
-		Name:       opts.Name,
-		ServerType: opts.ServerType,
-		State:      "running",
-		PublicIPv4: fmt.Sprintf("1.2.3.%d", id),
-		PublicIPv6: fmt.Sprintf("2001:db8::%d/64", id),
-		NetworkIDs: nil,
+		ID:               id,
+		Name:             opts.Name,
+		ServerType:       opts.ServerType,
+		State:            "running",
+		PublicIPv4:       fmt.Sprintf("1.2.3.%d", id),
+		PublicIPv6:       fmt.Sprintf("2001:db8::%d/64", id),
+		NetworkIDs:       nil,
+		PlacementGroupID: opts.PlacementGroupID,
 	}
 	f.servers[id] = info
 	return copyServerInfo(info), nil
@@ -719,6 +723,66 @@ func (f *FakeClient) AddNetworkCloudSubnet(ctx context.Context, networkID int64,
 	return nil
 }
 
+func (f *FakeClient) GetPlacementGroup(ctx context.Context, id int64) (*PlacementGroupInfo, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.GetErr != nil {
+		return nil, f.GetErr
+	}
+	pg, ok := f.placementGroups[id]
+	if !ok {
+		return nil, nil
+	}
+	return copyPlacementGroupInfo(pg), nil
+}
+
+func (f *FakeClient) GetPlacementGroupByName(ctx context.Context, name string) (*PlacementGroupInfo, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.GetErr != nil {
+		return nil, f.GetErr
+	}
+	for _, pg := range f.placementGroups {
+		if pg.Name == name {
+			return copyPlacementGroupInfo(pg), nil
+		}
+	}
+	return nil, nil
+}
+
+func (f *FakeClient) CreatePlacementGroup(ctx context.Context, opts PlacementGroupCreateOpts) (*PlacementGroupInfo, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.CreateErr != nil {
+		return nil, f.CreateErr
+	}
+	for _, pg := range f.placementGroups {
+		if pg.Name == opts.Name {
+			return nil, fmt.Errorf("fake: placement group with name %q already exists", opts.Name)
+		}
+	}
+	id := f.nextID
+	f.nextID++
+	info := &PlacementGroupInfo{
+		ID:     id,
+		Name:   opts.Name,
+		Type:   opts.Type,
+		Labels: cloneStringMap(opts.Labels),
+	}
+	f.placementGroups[id] = info
+	return copyPlacementGroupInfo(info), nil
+}
+
+func (f *FakeClient) DeletePlacementGroup(ctx context.Context, id int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.DeleteErr != nil {
+		return f.DeleteErr
+	}
+	delete(f.placementGroups, id)
+	return nil
+}
+
 func copyNetworkInfo(n *NetworkInfo) *NetworkInfo {
 	if n == nil {
 		return nil
@@ -747,4 +811,13 @@ func cloneStringMap(m map[string]string) map[string]string {
 		out[k] = v
 	}
 	return out
+}
+
+func copyPlacementGroupInfo(pg *PlacementGroupInfo) *PlacementGroupInfo {
+	if pg == nil {
+		return nil
+	}
+	cp := *pg
+	cp.Labels = cloneStringMap(pg.Labels)
+	return &cp
 }

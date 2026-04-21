@@ -133,3 +133,29 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudplacementgroups
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudplacementgroups/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudplacementgroups/status
+  verbs:
+  - get
+  - patch
+  - update

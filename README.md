@@ -24,7 +24,7 @@ Primary inspiration:
 Related ideas (not the core product definition):
 
 - **Crossplane-style composition** — optional; HKIC stays useful as plain CRDs.
-- **[hetzner-k3s](https://github.com/vitobotta/hetzner-k3s):** a **benchmark** for “what a good k3s-on-Hetzner stack often includes,” not a runtime dependency. We converge on coverage of the **Hetzner building blocks** and optional recipes, not on cloning the CLI UX.
+- **[hetzner-k3s](https://github.com/vitobotta/hetzner-k3s):** referenced only in **optional** k3s composition samples—not a product goal or runtime dependency. The main track is **Hetzner Cloud API coverage** ([coverage matrix](docs/hcloud-api-coverage.md)).
 
 **How it fits together:** one reconciler per concern (`HCloudServer`, `HCloudNetwork`, …). You adopt only what you need. See `docs/roadmap.md` for API coverage and optional cluster-shaped work.
 
@@ -51,6 +51,7 @@ You can combine HKIC with orchestrators like [Kube Resource Orchestrator (kro)](
 - **Volumes (`HCloudVolume`):** Provision block storage and automatically attach it to your servers using Kubernetes native references (`serverRef`).
 - **Load Balancers (`HCloudLoadBalancer`):** Expose selected servers through a public Hetzner Load Balancer using `serverSelector` label matching.
 - **Firewalls (`HCloudFirewall`):** Define Hetzner Cloud firewall rules and attach to servers by `HCloudServer` reference and/or a Hetzner label selector.
+- **Placement Groups (`HCloudPlacementGroup`):** Spread or cluster placement groups; reference from `HCloudServer.spec.placementGroupRef` at server creation.
 - **Idempotent Operations:** The controller is designed to handle API interruptions safely without creating duplicate infrastructure.
 
 ## Where to start
@@ -204,6 +205,7 @@ kubectl get hcs,hcv,hclb
 - [hetzner-k3s `cluster.yaml` -> HKIC mapping](docs/hetzner-k3s-cluster-yaml-mapping.md)
 - [k3s cluster-shape composition recipe](docs/k3s-cluster-shape-recipe.md)
 - [k3s kubeconfig access pattern](docs/k3s-on-hcloud.md#secure-kubeconfig-handling-recommended)
+- [Hetzner Cloud API coverage matrix](docs/hcloud-api-coverage.md)
 - [Roadmap](docs/roadmap.md)
 - [Contributing](CONTRIBUTING.md)
 

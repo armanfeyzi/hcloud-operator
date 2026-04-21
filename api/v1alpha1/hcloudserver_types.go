@@ -43,6 +43,11 @@ type HCloudServerSpec struct {
 	// When set, the controller attaches this server to the referenced private network.
 	// +optional
 	NetworkRef *corev1.LocalObjectReference `json:"networkRef,omitempty"`
+
+	// PlacementGroupRef points to an HCloudPlacementGroup by name.
+	// Applied at server creation time only; immutable after the server exists in Hetzner.
+	// +optional
+	PlacementGroupRef *corev1.LocalObjectReference `json:"placementGroupRef,omitempty"`
 }
 
 // HCloudServerStatus defines the observed state of an HCloudServer.
@@ -71,6 +76,10 @@ type HCloudServerStatus struct {
 	// AppliedNetworkID is the network ID currently managed for this server via spec.networkRef.
 	// +optional
 	AppliedNetworkID int64 `json:"appliedNetworkID,omitempty"`
+
+	// AppliedPlacementGroupID is the placement group ID used when this server was created.
+	// +optional
+	AppliedPlacementGroupID int64 `json:"appliedPlacementGroupID,omitempty"`
 
 	// Conditions represent the latest available observations of the server's current state.
 	// +optional

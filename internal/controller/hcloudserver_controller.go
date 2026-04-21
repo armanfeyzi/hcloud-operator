@@ -42,6 +42,8 @@ const (
 // +kubebuilder:rbac:groups=infra.hkc.io,resources=hcloudservers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=infra.hkc.io,resources=hcloudservers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=infra.hkc.io,resources=hcloudservers/finalizers,verbs=update
+// +kubebuilder:rbac:groups=infra.hkc.io,resources=hcloudnetworks,verbs=get;list;watch
+// +kubebuilder:rbac:groups=infra.hkc.io,resources=hcloudplacementgroups,verbs=get;list;watch
 type HCloudServerReconciler struct {
 	client.Client
 	Scheme       *runtime.Scheme
@@ -143,14 +145,19 @@ func (r *HCloudServerReconciler) reconcileHCloudServer(ctx context.Context, obj 
 
 	// No server found — create one.
 	log.Info("Creating new Hetzner server", "name", obj.Name, "serverType", obj.Spec.ServerType)
+	placementGroupID, err := r.resolvePlacementGroupID(ctx, obj)
+	if err != nil {
+		return 0, err
+	}
 	created, err := r.HCloudClient.CreateServer(ctx, hcloudclient.ServerCreateOpts{
-		Name:       obj.Name,
-		ServerType: obj.Spec.ServerType,
-		Image:      obj.Spec.Image,
-		Location:   obj.Spec.Location,
-		Labels:     obj.Spec.Labels,
-		SSHKeys:    obj.Spec.SSHKeys,
-		UserData:   obj.Spec.UserData,
+		Name:             obj.Name,
+		ServerType:       obj.Spec.ServerType,
+		Image:            obj.Spec.Image,
+		Location:         obj.Spec.Location,
+		Labels:           obj.Spec.Labels,
+		SSHKeys:          obj.Spec.SSHKeys,
+		UserData:         obj.Spec.UserData,
+		PlacementGroupID: placementGroupID,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("create Hetzner server: %w", err)
@@ -160,6 +167,9 @@ func (r *HCloudServerReconciler) reconcileHCloudServer(ctx context.Context, obj 
 	obj.Status.State = created.State
 	obj.Status.PublicIPv4 = created.PublicIPv4
 	obj.Status.PublicIPv6 = created.PublicIPv6
+	if created.PlacementGroupID != 0 {
+		obj.Status.AppliedPlacementGroupID = created.PlacementGroupID
+	}
 	if created.ServerType == obj.Spec.ServerType && created.State == "running" {
 		obj.Status.AppliedServerType = obj.Spec.ServerType
 	}
@@ -199,6 +209,12 @@ func (r *HCloudServerReconciler) reconcileExistingServer(ctx context.Context, ob
 	if networkChanged {
 		r.applyServerStatus(obj, s)
 		return resizeRequeueDelay, r.updateServerStatusWithRetry(ctx, obj)
+	}
+
+	if blocked, err := r.syncPlacementGroupStatus(ctx, obj, s); err != nil {
+		return 0, err
+	} else if blocked {
+		return 0, nil
 	}
 
 	return 0, r.syncStatus(ctx, obj, s)
@@ -446,6 +462,54 @@ func hasNetworkLifecycleReadyReason(obj *infrav1alpha1.HCloudServer) bool {
 	default:
 		return false
 	}
+}
+
+func (r *HCloudServerReconciler) resolvePlacementGroupID(ctx context.Context, obj *infrav1alpha1.HCloudServer) (int64, error) {
+	if obj.Spec.PlacementGroupRef == nil || obj.Spec.PlacementGroupRef.Name == "" {
+		return 0, nil
+	}
+	pg := &infrav1alpha1.HCloudPlacementGroup{}
+	if err := r.Get(ctx, client.ObjectKey{Name: obj.Spec.PlacementGroupRef.Name}, pg); err != nil {
+		return 0, fmt.Errorf("get referenced HCloudPlacementGroup %q: %w", obj.Spec.PlacementGroupRef.Name, err)
+	}
+	if pg.Status.PlacementGroupID == 0 {
+		return 0, fmt.Errorf("referenced HCloudPlacementGroup %q is not ready (status.placementGroupID is empty)", pg.Name)
+	}
+	return pg.Status.PlacementGroupID, nil
+}
+
+func (r *HCloudServerReconciler) syncPlacementGroupStatus(
+	ctx context.Context,
+	obj *infrav1alpha1.HCloudServer,
+	s *hcloudclient.ServerInfo,
+) (blocked bool, err error) {
+	if obj.Spec.PlacementGroupRef == nil || obj.Spec.PlacementGroupRef.Name == "" {
+		obj.Status.AppliedPlacementGroupID = s.PlacementGroupID
+		return false, nil
+	}
+
+	expectedID, err := r.resolvePlacementGroupID(ctx, obj)
+	if err != nil {
+		return false, err
+	}
+
+	obj.Status.AppliedPlacementGroupID = s.PlacementGroupID
+	if s.PlacementGroupID != expectedID {
+		r.setCondition(
+			obj,
+			conditionTypeReady,
+			metav1.ConditionFalse,
+			"PlacementGroupMismatch",
+			fmt.Sprintf(
+				"server placement group ID %d does not match referenced HCloudPlacementGroup %q (ID %d); placement groups are set at create time only",
+				s.PlacementGroupID,
+				obj.Spec.PlacementGroupRef.Name,
+				expectedID,
+			),
+		)
+		return true, r.updateServerStatusWithRetry(ctx, obj)
+	}
+	return false, nil
 }
 
 func (r *HCloudServerReconciler) updateServerStatusWithRetry(ctx context.Context, obj *infrav1alpha1.HCloudServer) error {

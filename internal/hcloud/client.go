@@ -11,24 +11,26 @@ import (
 // ServerInfo is a minimal, SDK-agnostic view of a Hetzner Cloud server.
 // The controller uses this type so it doesn't import the hcloud-go SDK directly.
 type ServerInfo struct {
-	ID         int64
-	Name       string
-	ServerType string
-	State      string
-	PublicIPv4 string
-	PublicIPv6 string
-	NetworkIDs []int64
+	ID               int64
+	Name             string
+	ServerType       string
+	State            string
+	PublicIPv4       string
+	PublicIPv6       string
+	NetworkIDs       []int64
+	PlacementGroupID int64
 }
 
 // ServerCreateOpts holds the parameters for creating a Hetzner Cloud server.
 type ServerCreateOpts struct {
-	Name       string
-	ServerType string
-	Image      string
-	Location   string
-	Labels     map[string]string
-	SSHKeys    []string
-	UserData   string
+	Name             string
+	ServerType       string
+	Image            string
+	Location         string
+	Labels           map[string]string
+	SSHKeys          []string
+	UserData         string
+	PlacementGroupID int64
 }
 
 // VolumeInfo is a minimal, SDK-agnostic view of a Hetzner Cloud volume.
@@ -123,6 +125,21 @@ type FirewallCreateOpts struct {
 	ApplyTo []FirewallApplyResource
 }
 
+// PlacementGroupInfo is a minimal view of a Hetzner Cloud placement group.
+type PlacementGroupInfo struct {
+	ID     int64
+	Name   string
+	Type   string
+	Labels map[string]string
+}
+
+// PlacementGroupCreateOpts holds parameters for creating a placement group.
+type PlacementGroupCreateOpts struct {
+	Name   string
+	Type   string
+	Labels map[string]string
+}
+
 // Interface defines the Hetzner Cloud operations required by the controller.
 // Using an interface here allows the controller to be tested with a fake client
 // without making real API calls.
@@ -165,6 +182,11 @@ type Interface interface {
 	SetFirewallRules(ctx context.Context, id int64, rules []FirewallRuleInfo) error
 	ApplyFirewallResources(ctx context.Context, id int64, resources []FirewallApplyResource) error
 	RemoveFirewallResources(ctx context.Context, id int64, resources []FirewallApplyResource) error
+
+	GetPlacementGroup(ctx context.Context, id int64) (*PlacementGroupInfo, error)
+	GetPlacementGroupByName(ctx context.Context, name string) (*PlacementGroupInfo, error)
+	CreatePlacementGroup(ctx context.Context, opts PlacementGroupCreateOpts) (*PlacementGroupInfo, error)
+	DeletePlacementGroup(ctx context.Context, id int64) error
 }
 
 // Client wraps the Hetzner Cloud API client with idempotent helpers.
@@ -243,14 +265,27 @@ func (c *Client) CreateServer(ctx context.Context, opts ServerCreateOpts) (*Serv
 		}
 	}
 
+	var placementGroup *hcloudgo.PlacementGroup
+	if opts.PlacementGroupID != 0 {
+		pg, _, err := c.hc.PlacementGroup.GetByID(ctx, opts.PlacementGroupID)
+		if err != nil {
+			return nil, fmt.Errorf("hcloud: resolve placement group %d: %w", opts.PlacementGroupID, err)
+		}
+		if pg == nil {
+			return nil, fmt.Errorf("hcloud: placement group %d not found", opts.PlacementGroupID)
+		}
+		placementGroup = pg
+	}
+
 	result, _, err := c.hc.Server.Create(ctx, hcloudgo.ServerCreateOpts{
-		Name:       opts.Name,
-		ServerType: serverType,
-		Image:      image,
-		Location:   location,
-		Labels:     opts.Labels,
-		SSHKeys:    sshKeys,
-		UserData:   opts.UserData,
+		Name:           opts.Name,
+		ServerType:     serverType,
+		Image:          image,
+		Location:       location,
+		Labels:         opts.Labels,
+		SSHKeys:        sshKeys,
+		UserData:       opts.UserData,
+		PlacementGroup: placementGroup,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("hcloud: CreateServer %q: %w", opts.Name, err)
@@ -359,6 +394,9 @@ func toServerInfo(s *hcloudgo.Server) *ServerInfo {
 		if pn.Network != nil {
 			info.NetworkIDs = append(info.NetworkIDs, pn.Network.ID)
 		}
+	}
+	if s.PlacementGroup != nil {
+		info.PlacementGroupID = s.PlacementGroup.ID
 	}
 	return info
 }
@@ -829,6 +867,77 @@ func toLoadBalancerInfo(lb *hcloudgo.LoadBalancer) *LoadBalancerInfo {
 	for _, target := range lb.Targets {
 		if target.Type == hcloudgo.LoadBalancerTargetTypeServer && target.Server != nil && target.Server.Server != nil {
 			info.Targets = append(info.Targets, target.Server.Server.ID)
+		}
+	}
+	return info
+}
+
+// GetPlacementGroup fetches a placement group by ID. Returns nil, nil if not found.
+func (c *Client) GetPlacementGroup(ctx context.Context, id int64) (*PlacementGroupInfo, error) {
+	pg, _, err := c.hc.PlacementGroup.GetByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("hcloud: GetPlacementGroup(%d): %w", id, err)
+	}
+	if pg == nil {
+		return nil, nil
+	}
+	return toPlacementGroupInfo(pg), nil
+}
+
+// GetPlacementGroupByName fetches a placement group by name. Returns nil, nil if not found.
+func (c *Client) GetPlacementGroupByName(ctx context.Context, name string) (*PlacementGroupInfo, error) {
+	pg, _, err := c.hc.PlacementGroup.GetByName(ctx, name)
+	if err != nil {
+		return nil, fmt.Errorf("hcloud: GetPlacementGroupByName(%q): %w", name, err)
+	}
+	if pg == nil {
+		return nil, nil
+	}
+	return toPlacementGroupInfo(pg), nil
+}
+
+// CreatePlacementGroup creates a new placement group in Hetzner Cloud.
+func (c *Client) CreatePlacementGroup(ctx context.Context, opts PlacementGroupCreateOpts) (*PlacementGroupInfo, error) {
+	pgType := hcloudgo.PlacementGroupType(opts.Type)
+	result, _, err := c.hc.PlacementGroup.Create(ctx, hcloudgo.PlacementGroupCreateOpts{
+		Name:   opts.Name,
+		Type:   pgType,
+		Labels: opts.Labels,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("hcloud: CreatePlacementGroup %q: %w", opts.Name, err)
+	}
+	return toPlacementGroupInfo(result.PlacementGroup), nil
+}
+
+// DeletePlacementGroup deletes a placement group by ID. Idempotent if not found.
+func (c *Client) DeletePlacementGroup(ctx context.Context, id int64) error {
+	pg, _, err := c.hc.PlacementGroup.GetByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("hcloud: GetPlacementGroup(%d): %w", id, err)
+	}
+	if pg == nil {
+		return nil
+	}
+	if _, err := c.hc.PlacementGroup.Delete(ctx, pg); err != nil {
+		return fmt.Errorf("hcloud: DeletePlacementGroup(%d): %w", id, err)
+	}
+	return nil
+}
+
+func toPlacementGroupInfo(pg *hcloudgo.PlacementGroup) *PlacementGroupInfo {
+	if pg == nil {
+		return nil
+	}
+	info := &PlacementGroupInfo{
+		ID:   pg.ID,
+		Name: pg.Name,
+		Type: string(pg.Type),
+	}
+	if pg.Labels != nil {
+		info.Labels = make(map[string]string, len(pg.Labels))
+		for k, v := range pg.Labels {
+			info.Labels[k] = v
 		}
 	}
 	return info

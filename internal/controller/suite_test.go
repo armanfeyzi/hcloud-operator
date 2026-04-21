@@ -75,6 +75,12 @@ func drainClusterCRs(ctx context.Context, c client.Client) {
 			_ = client.IgnoreNotFound(c.Delete(ctx, &fws.Items[i]))
 		}
 	}
+	var pgs infrav1alpha1.HCloudPlacementGroupList
+	if err := c.List(ctx, &pgs); err == nil {
+		for i := range pgs.Items {
+			_ = client.IgnoreNotFound(c.Delete(ctx, &pgs.Items[i]))
+		}
+	}
 	_ = wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 20*time.Second, true, func(ctx context.Context) (bool, error) {
 		var s infrav1alpha1.HCloudServerList
 		if err := c.List(ctx, &s); err != nil {
@@ -109,6 +115,13 @@ func drainClusterCRs(ctx context.Context, c client.Client) {
 			return false, nil
 		}
 		if len(fw.Items) > 0 {
+			return false, nil
+		}
+		var pg infrav1alpha1.HCloudPlacementGroupList
+		if err := c.List(ctx, &pg); err != nil {
+			return false, nil
+		}
+		if len(pg.Items) > 0 {
 			return false, nil
 		}
 		return true, nil
@@ -203,6 +216,15 @@ func TestMain(m *testing.M) {
 		HCloudClient: fakeHCloud,
 	}).SetupWithManager(k8sManager); err != nil {
 		fmt.Printf("failed to setup firewall reconciler: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err = (&HCloudPlacementGroupReconciler{
+		Client:       k8sManager.GetClient(),
+		Scheme:       k8sManager.GetScheme(),
+		HCloudClient: fakeHCloud,
+	}).SetupWithManager(k8sManager); err != nil {
+		fmt.Printf("failed to setup placement group reconciler: %v\n", err)
 		os.Exit(1)
 	}
 

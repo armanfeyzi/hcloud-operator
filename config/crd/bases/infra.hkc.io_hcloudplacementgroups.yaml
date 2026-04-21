@@ -4,30 +4,21 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.1
-  name: hcloudservers.infra.hkc.io
+  name: hcloudplacementgroups.infra.hkc.io
 spec:
   group: infra.hkc.io
   names:
-    kind: HCloudServer
-    listKind: HCloudServerList
-    plural: hcloudservers
+    kind: HCloudPlacementGroup
+    listKind: HCloudPlacementGroupList
+    plural: hcloudplacementgroups
     shortNames:
-    - hcs
-    singular: hcloudserver
+    - hcpg
+    singular: hcloudplacementgroup
   scope: Cluster
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.serverType
-      name: ServerType
-      type: string
-    - jsonPath: .spec.location
-      name: Location
-      type: string
-    - jsonPath: .status.state
-      name: State
-      type: string
-    - jsonPath: .status.publicIPv4
-      name: IP
+    - jsonPath: .spec.type
+      name: Type
       type: string
     - jsonPath: .metadata.creationTimestamp
       name: Age
@@ -35,9 +26,8 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: |-
-          HCloudServer is the Schema for the hcloudservers API.
-          It represents a Hetzner Cloud virtual machine managed by the hcloud-operator.
+        description: HCloudPlacementGroup is the Schema for the hcloudplacementgroups
+          API.
         properties:
           apiVersion:
             description: |-
@@ -57,95 +47,35 @@ spec:
           metadata:
             type: object
           spec:
-            description: HCloudServerSpec defines the desired state of an HCloudServer.
+            description: HCloudPlacementGroupSpec defines the desired state of an
+              HCloudPlacementGroup.
             properties:
-              image:
-                description: Image is the OS image to use (e.g. ubuntu-22.04, debian-12).
-                minLength: 1
-                type: string
               labels:
                 additionalProperties:
                   type: string
-                description: Labels to attach to the Hetzner Cloud server resource.
+                description: Labels to attach to the Hetzner Cloud placement group
+                  resource.
                 type: object
-              location:
-                description: Location is the Hetzner datacenter location (e.g. fsn1,
-                  nbg1, hel1, ash, hil).
-                minLength: 1
-                type: string
-              networkRef:
-                description: |-
-                  NetworkRef points to an HCloudNetwork by name.
-                  When set, the controller attaches this server to the referenced private network.
-                properties:
-                  name:
-                    description: |-
-                      Name of the referent.
-                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                    type: string
-                type: object
-                x-kubernetes-map-type: atomic
-              placementGroupRef:
-                description: |-
-                  PlacementGroupRef points to an HCloudPlacementGroup by name.
-                  Applied at server creation time only; immutable after the server exists in Hetzner.
-                properties:
-                  name:
-                    description: |-
-                      Name of the referent.
-                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                    type: string
-                type: object
-                x-kubernetes-map-type: atomic
-              serverType:
-                description: |-
-                  ServerType is the Hetzner Cloud server type (e.g. cx21, cx31, cpx41).
-                  May be changed after creation; the controller powers off the server, changes type via the API, then powers it on again.
-                minLength: 1
-                type: string
-              sshKeys:
-                description: SSHKeys is a list of SSH key names or IDs to inject into
-                  the server on creation.
-                items:
-                  type: string
-                type: array
-              userData:
-                description: |-
-                  UserData is cloud-init user-data to pass to the server on first boot.
-                  Must be a valid cloud-config or shell script. Applied once at creation time.
-                maxLength: 32768
+              type:
+                description: 'Type is the Hetzner placement group strategy: spread
+                  or cluster.'
+                enum:
+                - spread
+                - cluster
                 type: string
             required:
-            - image
-            - location
-            - serverType
+            - type
             type: object
             x-kubernetes-validations:
-            - message: image is immutable after creation
-              rule: self.image == oldSelf.image
-            - message: location is immutable after creation
-              rule: self.location == oldSelf.location
+            - message: type is immutable after creation
+              rule: self.type == oldSelf.type
           status:
-            description: HCloudServerStatus defines the observed state of an HCloudServer.
+            description: HCloudPlacementGroupStatus defines the observed state of
+              an HCloudPlacementGroup.
             properties:
-              appliedNetworkID:
-                description: AppliedNetworkID is the network ID currently managed
-                  for this server via spec.networkRef.
-                format: int64
-                type: integer
-              appliedPlacementGroupID:
-                description: AppliedPlacementGroupID is the placement group ID used
-                  when this server was created.
-                format: int64
-                type: integer
-              appliedServerType:
-                description: |-
-                  AppliedServerType is the server type the controller has fully converged to (API type matches spec and server was running).
-                  While spec.serverType differs from the value in Hetzner, or before this field is set after a type change, a resize may be in progress.
-                type: string
               conditions:
                 description: Conditions represent the latest available observations
-                  of the server's current state.
+                  of the placement group.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -204,19 +134,13 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
-              publicIPv4:
-                description: PublicIPv4 is the server's public IPv4 address.
-                type: string
-              publicIPv6:
-                description: PublicIPv6 is the server's public IPv6 network prefix.
-                type: string
-              serverID:
-                description: ServerID is the Hetzner Cloud internal server ID.
+              placementGroupID:
+                description: PlacementGroupID is the Hetzner Cloud internal placement
+                  group ID.
                 format: int64
                 type: integer
-              state:
-                description: State is the current Hetzner server state (e.g. running,
-                  stopped, initializing).
+              type:
+                description: Type is the placement group type observed in Hetzner.
                 type: string
             type: object
         type: object

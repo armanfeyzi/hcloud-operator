@@ -5,5 +5,6 @@ resources:
 - bases/infra.hkc.io_hcloudfirewalls.yaml
 - bases/infra.hkc.io_hcloudloadbalancers.yaml
 - bases/infra.hkc.io_hcloudnetworks.yaml
+- bases/infra.hkc.io_hcloudplacementgroups.yaml
 - bases/infra.hkc.io_hcloudservers.yaml
 - bases/infra.hkc.io_hcloudvolumes.yaml

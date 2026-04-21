@@ -17,6 +17,7 @@ Manages a single Hetzner Cloud virtual server.
 | `sshKeys` | []string | No | List of SSH key names/IDs to inject at creation |
 | `userData` | string | No | Cloud-init configuration (applied at **server creation** in Hetzner; see [k3s sample](k3s-on-hcloud.md)) |
 | `networkRef.name` | string | No | Name of target `HCloudNetwork` to attach this server to |
+| `placementGroupRef.name` | string | No | Name of target `HCloudPlacementGroup`; applied at **server creation** only |
 
 ### Status
 
@@ -28,6 +29,7 @@ Manages a single Hetzner Cloud virtual server.
 | `publicIPv4` | string | The allocated public IPv4 address |
 | `publicIPv6` | string | The allocated public IPv6 address network |
 | `appliedNetworkID` | int64 | Last private network ID managed via `spec.networkRef` (cleared when `networkRef` is unset) |
+| `appliedPlacementGroupID` | int64 | Placement group ID used when the server was created |
 | `conditions` | []Condition | Status conditions (e.g. `Ready=True`) |
 
 ### Example
@@ -212,4 +214,46 @@ spec:
   applyTo:
     serverRefs:
       - name: my-server
+```
+
+## `HCloudPlacementGroup`
+Group: `infra.hkc.io/v1alpha1`
+Scope: `Cluster`
+
+Manages a Hetzner Cloud placement group (spread or cluster anti-/co-location).
+
+### Spec
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | string | Yes | `spread` or `cluster`. Immutable after creation. |
+| `labels` | map[string]string | No | Cloud resource labels |
+
+### Status
+
+| Field | Type | Description |
+|---|---|---|
+| `placementGroupID` | int64 | Hetzner placement group ID |
+| `type` | string | Observed type in Hetzner |
+| `conditions` | []Condition | e.g. `Ready=True` |
+
+### Example
+
+```yaml
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudPlacementGroup
+metadata:
+  name: app-spread
+spec:
+  type: spread
+  labels:
+    app: web
+```
+
+Reference from a server at create time:
+
+```yaml
+spec:
+  placementGroupRef:
+    name: app-spread
 ```

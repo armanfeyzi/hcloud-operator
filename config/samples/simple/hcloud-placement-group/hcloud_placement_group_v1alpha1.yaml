@@ -1,0 +1,8 @@
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudPlacementGroup
+metadata:
+  name: demo-spread
+spec:
+  type: spread
+  labels:
+    env: demo

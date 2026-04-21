@@ -3,14 +3,14 @@
 ## Overview
 Hetzner Kubernetes Infrastructure Controller (HKIC) is a Kubernetes-native operator that provisions and manages Hetzner Cloud infrastructure using the Operator pattern.
 
-**Strategic direction:** support the **full lifecycle** of Kubernetes on Hetzner Cloud (create, run, reconfigure, delete) with **coverage of major Hetzner primitives** comparable to [hetzner-k3s](https://github.com/vitobotta/hetzner-k3s), while keeping **one reconciler per concern** so users can adopt servers-only, networking-only, or a full composed stack. See `docs/roadmap.md`.
+**Strategic direction:** **[ACK](https://aws.amazon.com/blogs/containers/aws-controllers-for-kubernetes-ack/)-style** coverage of the **Hetzner Cloud API** through composable CRDs and reconcilers—one resource kind per controller where it makes sense. Users adopt only what they need (servers-only, storage-only, full stacks, etc.). Optional samples (including k3s-on-Hetzner recipes) compose those primitives; they are not the product definition. See `docs/roadmap.md` and `docs/hcloud-api-coverage.md`.
 
 ## Components
 
 1. **Custom Resource Definitions (CRDs)**
    - The API layer defined in Kubernetes.
    - Example: `HCloudServer` defines the desired state of a Hetzner Cloud VM.
-   - Current surface includes `HCloudServer`, `HCloudVolume`, `HCloudLoadBalancer`, `HCloudNetwork`, and `HCloudFirewall`.
+   - Current surface includes `HCloudServer`, `HCloudVolume`, `HCloudLoadBalancer`, `HCloudNetwork`, `HCloudFirewall`, and `HCloudPlacementGroup` (see `docs/hcloud-api-coverage.md` for the full matrix).
    - Multiple CRDs compose into larger systems; none are mandatory unless you need that capability.
 
 2. **Controller (Reconciler)**
