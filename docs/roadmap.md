@@ -31,7 +31,7 @@ Tracked on GitHub milestone **[HKIC: Hetzner Cloud CRD coverage](https://github.
 - [ ] **`HCloudCertificate`** + LB TLS integration (#6)
 - [ ] **Volume snapshots** (`HCloudVolumeSnapshot` or spec model) (#7)
 - [ ] **`HCloudSSHKey`** (optional / low priority) (#8)
-- [ ] **Harden existing CRDs** — LB listeners/health, `upgradeDisk` on server, volume resize (#9)
+- [x] **Harden existing CRDs** — LB listeners/health, `upgradeDisk` on server, volume resize (#9)
 
 ## Phase 1: MVP — **Complete**
 - [x] Project scaffolding
@@ -41,7 +41,7 @@ Tracked on GitHub milestone **[HKIC: Hetzner Cloud CRD coverage](https://github.
 
 ## Phase 2: Compute & storage — **Mostly complete**
 - [x] Server vertical scaling (`spec.serverType` changes via power off → `change_type` → power on; `status.appliedServerType`)
-- [x] Optional **`upgradeDisk`** on type change (not yet exposed on `HCloudServer` spec — backlog, #9)
+- [x] Optional **`upgradeDisk`** on type change (`HCloudServer.spec.upgradeDisk`)
 - [x] `HCloudVolume` CRD and reconciler
 - [x] Volume attach / detach via `serverRef` and drift correction
 - [x] `HCloudLoadBalancer` CRD with `serverSelector` and target sync

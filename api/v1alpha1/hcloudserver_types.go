@@ -48,6 +48,10 @@ type HCloudServerSpec struct {
 	// Applied at server creation time only; immutable after the server exists in Hetzner.
 	// +optional
 	PlacementGroupRef *corev1.LocalObjectReference `json:"placementGroupRef,omitempty"`
+
+	// UpgradeDisk controls whether the local disk is upgraded when serverType changes via Hetzner change_type.
+	// +optional
+	UpgradeDisk bool `json:"upgradeDisk,omitempty"`
 }
 
 // HCloudServerStatus defines the observed state of an HCloudServer.

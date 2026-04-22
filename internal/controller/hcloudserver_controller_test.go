@@ -162,6 +162,33 @@ var _ = Describe("HCloudServerReconciler", func() {
 			Expect(h.ServerType).To(Equal("cpx31"))
 		})
 
+		It("passes upgradeDisk to change_type when spec.upgradeDisk is true", func() {
+			server := newServer(serverName)
+			server.Spec.UpgradeDisk = true
+			Expect(k8sClient.Create(ctx, server)).To(Succeed())
+			Eventually(func() int64 {
+				obj, _ := fetchServer(serverName)()
+				return obj.Status.ServerID
+			}, waitTimeout, pollInterval).Should(BeNumerically(">", 0))
+
+			obj, err := fetchServer(serverName)()
+			Expect(err).NotTo(HaveOccurred())
+			sid := obj.Status.ServerID
+
+			obj.Spec.ServerType = "cpx31"
+			Expect(k8sClient.Update(ctx, obj)).To(Succeed())
+
+			Eventually(func() string {
+				o, err := fetchServer(serverName)()
+				if err != nil {
+					return ""
+				}
+				return o.Status.AppliedServerType
+			}, waitTimeout, pollInterval).Should(Equal("cpx31"))
+
+			Expect(fakeHCloud.LastChangeServerTypeUpgradeDisk[sid]).To(BeTrue())
+		})
+
 		It("sets Ready=False and requeues when the Hetzner API returns an error", func() {
 			By("injecting a create error into the fake")
 			fakeHCloud.CreateErr = fmt.Errorf("quota exceeded")

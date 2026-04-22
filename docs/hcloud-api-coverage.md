@@ -6,9 +6,9 @@ This table maps **Hetzner Cloud API resource families** to **HKIC CRDs**. It is 
 
 | Hetzner API area | HKIC CRD / behavior | Status | Notes / issue |
 |---|---|---|---|
-| **Servers** | `HCloudServer` | **Done** | Create, delete, adopt-by-name, status sync, `serverType` changes, `networkRef`, `userData`, labels, SSH key names at create |
-| **Volumes** | `HCloudVolume` | **Done** | Create, delete, attach/detach via `serverRef`; resize not yet exposed |
-| **Load Balancers** | `HCloudLoadBalancer` | **Partial** | Create, delete, target sync via `serverSelector`; listeners, services, health checks not yet in spec (#9) |
+| **Servers** | `HCloudServer` | **Done** | Create, delete, adopt-by-name, status sync, `serverType` changes with optional `upgradeDisk`, `networkRef`, `userData`, labels, SSH key names at create |
+| **Volumes** | `HCloudVolume` | **Done** | Create, delete, attach/detach, **size increase** via resize API |
+| **Load Balancers** | `HCloudLoadBalancer` | **Done** | Create, delete, target sync, **services + health checks** |
 | **Networks** | `HCloudNetwork` | **Done** | Private networks, Cloud subnets per zone, labels |
 | **Firewalls** | `HCloudFirewall` | **Done** | Rules, labels, attach via `serverRefs` and/or Hetzner label selector |
 | **Placement Groups** | `HCloudPlacementGroup` | **Done** | Spread/cluster groups; `HCloudServer.spec.placementGroupRef` at create time (#2, #3) |
@@ -29,9 +29,6 @@ This table maps **Hetzner Cloud API resource families** to **HKIC CRDs**. It is 
 
 | Area | Gap | Issue |
 |---|---|---|
-| `HCloudLoadBalancer` | Listeners, services, health checks | #9 |
-| `HCloudServer` | Expose `upgradeDisk` on spec for type changes | #9 |
-| `HCloudVolume` | Size changes vs Hetzner resize API | #9 |
 | All controllers | Kubernetes Events, Prometheus metrics, richer conditions | #11 |
 
 ## Optional composition (not API coverage)

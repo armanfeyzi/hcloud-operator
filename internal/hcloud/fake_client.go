@@ -26,6 +26,9 @@ type FakeClient struct {
 	GetErr error
 	// DeleteErr, if non-nil, is returned by every DeleteServer call.
 	DeleteErr error
+
+	// LastChangeServerTypeUpgradeDisk records upgradeDisk from the most recent ChangeServerType call per server ID.
+	LastChangeServerTypeUpgradeDisk map[int64]bool
 }
 
 // NewFakeClient returns an empty FakeClient ready for use in tests.
@@ -55,6 +58,7 @@ func (f *FakeClient) Reset() {
 	f.CreateErr = nil
 	f.GetErr = nil
 	f.DeleteErr = nil
+	f.LastChangeServerTypeUpgradeDisk = nil
 }
 
 func (f *FakeClient) GetServer(ctx context.Context, id int64) (*ServerInfo, error) {
@@ -177,6 +181,10 @@ func (f *FakeClient) ChangeServerType(ctx context.Context, id int64, serverType 
 		return fmt.Errorf("fake: server %d must be off to change type (state=%s)", id, s.State)
 	}
 	s.ServerType = serverType
+	if f.LastChangeServerTypeUpgradeDisk == nil {
+		f.LastChangeServerTypeUpgradeDisk = make(map[int64]bool)
+	}
+	f.LastChangeServerTypeUpgradeDisk[id] = upgradeDisk
 	return nil
 }
 
@@ -291,6 +299,7 @@ func (f *FakeClient) CreateVolume(ctx context.Context, opts VolumeCreateOpts) (*
 	info := &VolumeInfo{
 		ID:          id,
 		Name:        opts.Name,
+		Size:        opts.Size,
 		State:       "available",
 		LinuxDevice: fmt.Sprintf("/dev/disk/by-id/scsi-0HC_Volume_%d", id),
 	}
@@ -344,6 +353,21 @@ func (f *FakeClient) DetachVolume(ctx context.Context, volumeID int64) error {
 	return nil
 }
 
+func (f *FakeClient) ResizeVolume(ctx context.Context, volumeID int64, sizeGB int) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	v, ok := f.volumes[volumeID]
+	if !ok {
+		return fmt.Errorf("fake: volume %d not found", volumeID)
+	}
+	if sizeGB < v.Size {
+		return fmt.Errorf("fake: volume %d size cannot shrink from %d to %d GB", volumeID, v.Size, sizeGB)
+	}
+	v.Size = sizeGB
+	return nil
+}
+
 func (f *FakeClient) GetLoadBalancer(ctx context.Context, id int64) (*LoadBalancerInfo, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -357,6 +381,7 @@ func (f *FakeClient) GetLoadBalancer(ctx context.Context, id int64) (*LoadBalanc
 	}
 	cp := *lb
 	cp.Targets = append([]int64{}, lb.Targets...)
+	cp.Services = cloneLoadBalancerServices(lb.Services)
 	return &cp, nil
 }
 
@@ -371,6 +396,7 @@ func (f *FakeClient) GetLoadBalancerByName(ctx context.Context, name string) (*L
 		if lb.Name == name {
 			cp := *lb
 			cp.Targets = append([]int64{}, lb.Targets...)
+			cp.Services = cloneLoadBalancerServices(lb.Services)
 			return &cp, nil
 		}
 	}
@@ -723,6 +749,18 @@ func (f *FakeClient) AddNetworkCloudSubnet(ctx context.Context, networkID int64,
 	return nil
 }
 
+func (f *FakeClient) SyncLoadBalancerServices(ctx context.Context, loadBalancerID int64, desired []LoadBalancerServiceInfo) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	lb, ok := f.loadBalancers[loadBalancerID]
+	if !ok {
+		return fmt.Errorf("fake: load balancer %d not found", loadBalancerID)
+	}
+	lb.Services = cloneLoadBalancerServices(desired)
+	return nil
+}
+
 func (f *FakeClient) GetPlacementGroup(ctx context.Context, id int64) (*PlacementGroupInfo, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -820,4 +858,24 @@ func copyPlacementGroupInfo(pg *PlacementGroupInfo) *PlacementGroupInfo {
 	cp := *pg
 	cp.Labels = cloneStringMap(pg.Labels)
 	return &cp
+}
+
+func cloneLoadBalancerServices(services []LoadBalancerServiceInfo) []LoadBalancerServiceInfo {
+	if len(services) == 0 {
+		return nil
+	}
+	out := make([]LoadBalancerServiceInfo, len(services))
+	for i, svc := range services {
+		out[i] = svc
+		if svc.HealthCheck != nil {
+			hc := *svc.HealthCheck
+			if svc.HealthCheck.HTTP != nil {
+				http := *svc.HealthCheck.HTTP
+				http.StatusCodes = append([]string{}, svc.HealthCheck.HTTP.StatusCodes...)
+				hc.HTTP = &http
+			}
+			out[i].HealthCheck = &hc
+		}
+	}
+	return out
 }

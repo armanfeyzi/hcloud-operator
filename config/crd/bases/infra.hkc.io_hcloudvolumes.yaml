@@ -94,9 +94,15 @@ spec:
             - message: location is immutable after creation
               rule: '!has(oldSelf.location) || !has(self.location) || self.location
                 == oldSelf.location'
+            - message: size can only be increased
+              rule: self.size >= oldSelf.size
           status:
             description: HCloudVolumeStatus defines the observed state of an HCloudVolume.
             properties:
+              appliedSize:
+                description: AppliedSize is the volume size in GB last observed from
+                  Hetzner.
+                type: integer
               attachedServerID:
                 description: AttachedServerID is the Hetzner Cloud server ID this
                   volume is currently attached to.

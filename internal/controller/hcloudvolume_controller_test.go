@@ -133,4 +133,32 @@ var _ = Describe("HCloudVolumeReconciler", func() {
 			}, waitTimeout, pollInterval).Should(BeNumerically(">", 0))
 		})
 	})
+
+	Context("Volume resize", func() {
+		It("increases volume size when spec.size is updated", func() {
+			vol := newVolume(volName, 20, nil)
+			Expect(k8sClient.Create(ctx, vol)).To(Succeed())
+
+			Eventually(func() int {
+				v, _ := fetchVolume(volName)()
+				if v == nil {
+					return 0
+				}
+				return v.Status.AppliedSize
+			}, waitTimeout, pollInterval).Should(Equal(20))
+
+			obj, err := fetchVolume(volName)()
+			Expect(err).NotTo(HaveOccurred())
+			obj.Spec.Size = 30
+			Expect(k8sClient.Update(ctx, obj)).To(Succeed())
+
+			Eventually(func() int {
+				v, _ := fetchVolume(volName)()
+				if v == nil {
+					return 0
+				}
+				return v.Status.AppliedSize
+			}, waitTimeout, pollInterval).Should(Equal(30))
+		})
+	})
 })

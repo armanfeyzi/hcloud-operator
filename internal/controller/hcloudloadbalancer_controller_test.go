@@ -85,6 +85,48 @@ var _ = Describe("HCloudLoadBalancerReconciler", func() {
 		Expect(fakeHCloud.LenLoadBalancers()).To(Equal(1))
 	})
 
+	It("syncs load balancer services and health checks", func() {
+		lb := newLoadBalancer(lbName, nil)
+		interval := int32(15)
+		timeout := int32(10)
+		retries := int32(3)
+		path := "/healthz"
+		lb.Spec.Services = []infrav1alpha1.HCloudLoadBalancerServiceSpec{
+			{
+				ListenPort:      80,
+				DestinationPort: 8080,
+				Protocol:        "http",
+				HealthCheck: &infrav1alpha1.HCloudLoadBalancerHealthCheckSpec{
+					Protocol:        "http",
+					IntervalSeconds: &interval,
+					TimeoutSeconds:  &timeout,
+					Retries:         &retries,
+					HTTP: &infrav1alpha1.HCloudLoadBalancerHealthCheckHTTPSpec{
+						Path: &path,
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, lb)).To(Succeed())
+
+		Eventually(func() int64 {
+			obj := &infrav1alpha1.HCloudLoadBalancer{}
+			_ = k8sClient.Get(ctx, types.NamespacedName{Name: lbName}, obj)
+			return obj.Status.LoadBalancerID
+		}, waitTimeout, pollInterval).Should(BeNumerically(">", 0))
+
+		obj := &infrav1alpha1.HCloudLoadBalancer{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: lbName}, obj)).To(Succeed())
+		info, err := fakeHCloud.GetLoadBalancer(ctx, obj.Status.LoadBalancerID)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(info.Services).To(HaveLen(1))
+		Expect(info.Services[0].ListenPort).To(Equal(80))
+		Expect(info.Services[0].DestinationPort).To(Equal(8080))
+		Expect(info.Services[0].HealthCheck).NotTo(BeNil())
+		Expect(info.Services[0].HealthCheck.HTTP).NotTo(BeNil())
+		Expect(*info.Services[0].HealthCheck.HTTP.Path).To(Equal("/healthz"))
+	})
+
 	It("detaches server targets when labels no longer match selector", func() {
 		server := &infrav1alpha1.HCloudServer{
 			ObjectMeta: metav1.ObjectMeta{

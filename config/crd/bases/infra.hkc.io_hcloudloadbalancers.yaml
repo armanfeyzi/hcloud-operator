@@ -125,6 +125,106 @@ spec:
                     type: object
                 type: object
                 x-kubernetes-map-type: atomic
+              services:
+                description: |-
+                  Services defines front-end listeners, back-end ports, and optional health checks.
+                  Reconciled by listen port: services not listed are removed from Hetzner.
+                items:
+                  description: HCloudLoadBalancerServiceSpec defines a load balancer
+                    service (listener + target port).
+                  properties:
+                    destinationPort:
+                      description: DestinationPort is the port on target servers.
+                      format: int32
+                      maximum: 65535
+                      minimum: 1
+                      type: integer
+                    healthCheck:
+                      description: HealthCheck configures active health checking for
+                        this service.
+                      properties:
+                        http:
+                          description: HTTP configures HTTP(S) health check options.
+                          properties:
+                            domain:
+                              description: Domain to send in the Host header.
+                              type: string
+                            path:
+                              description: Path to request.
+                              type: string
+                            response:
+                              description: Response substring to match in the response
+                                body.
+                              type: string
+                            statusCodes:
+                              description: StatusCodes lists acceptable HTTP status
+                                codes (e.g. "2??", "3??").
+                              items:
+                                type: string
+                              type: array
+                            tls:
+                              description: TLS enables TLS for the health check request.
+                              type: boolean
+                          type: object
+                        intervalSeconds:
+                          description: IntervalSeconds between health checks.
+                          format: int32
+                          minimum: 1
+                          type: integer
+                        port:
+                          description: Port is the health check port. Defaults to
+                            destinationPort when unset in Hetzner.
+                          format: int32
+                          maximum: 65535
+                          minimum: 1
+                          type: integer
+                        protocol:
+                          description: Protocol is tcp, http, or https.
+                          enum:
+                          - tcp
+                          - http
+                          - https
+                          type: string
+                        retries:
+                          description: Retries before marking a target unhealthy.
+                          format: int32
+                          minimum: 1
+                          type: integer
+                        timeoutSeconds:
+                          description: TimeoutSeconds before a check is considered
+                            failed.
+                          format: int32
+                          minimum: 1
+                          type: integer
+                      required:
+                      - protocol
+                      type: object
+                    listenPort:
+                      description: ListenPort is the public port the load balancer
+                        listens on.
+                      format: int32
+                      maximum: 65535
+                      minimum: 1
+                      type: integer
+                    protocol:
+                      description: Protocol is tcp, http, or https.
+                      enum:
+                      - tcp
+                      - http
+                      - https
+                      type: string
+                    proxyprotocol:
+                      description: Proxyprotocol enables PROXY protocol for this service.
+                      type: boolean
+                  required:
+                  - destinationPort
+                  - listenPort
+                  - protocol
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - listenPort
+                x-kubernetes-list-type: map
             required:
             - loadBalancerType
             type: object

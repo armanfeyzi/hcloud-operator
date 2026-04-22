@@ -8,6 +8,7 @@ import (
 // HCloudVolumeSpec defines the desired state of an HCloudVolume.
 // +kubebuilder:validation:XValidation:rule="self.size >= 10 && self.size <= 10240",message="size must be between 10 and 10240 GB"
 // +kubebuilder:validation:XValidation:rule="!has(oldSelf.location) || !has(self.location) || self.location == oldSelf.location",message="location is immutable after creation"
+// +kubebuilder:validation:XValidation:rule="self.size >= oldSelf.size",message="size can only be increased"
 type HCloudVolumeSpec struct {
 	// Size of the volume in GB (minimum 10, maximum 10240).
 	// +kubebuilder:validation:Required
@@ -49,6 +50,10 @@ type HCloudVolumeStatus struct {
 	// LinuxDevice is the path to the device on the Linux server (e.g., /dev/disk/by-id/scsi-0HC_Volume_12345).
 	// +optional
 	LinuxDevice string `json:"linuxDevice,omitempty"`
+
+	// AppliedSize is the volume size in GB last observed from Hetzner.
+	// +optional
+	AppliedSize int `json:"appliedSize,omitempty"`
 
 	// Conditions represent the latest available observations of the volume's current state.
 	// +optional

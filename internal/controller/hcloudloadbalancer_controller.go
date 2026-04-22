@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"time"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -164,6 +165,11 @@ func (r *HCloudLoadBalancerReconciler) reconcileLoadBalancer(
 		}
 	}
 
+	desiredServices := loadBalancerServicesFromSpec(obj.Spec.Services)
+	if err := r.HCloudClient.SyncLoadBalancerServices(ctx, existing.ID, desiredServices); err != nil {
+		return fmt.Errorf("sync load balancer services: %w", err)
+	}
+
 	refreshed, err := r.HCloudClient.GetLoadBalancer(ctx, existing.ID)
 	if err != nil {
 		return fmt.Errorf("refresh load balancer: %w", err)
@@ -179,6 +185,56 @@ func (r *HCloudLoadBalancerReconciler) reconcileLoadBalancer(
 	obj.Status.AttachedServerIDs = refreshed.Targets
 	r.setCondition(obj, conditionTypeReady, metav1.ConditionTrue, "LoadBalancerReady", "Load balancer is provisioned and targets are in sync")
 	return r.updateLoadBalancerStatusWithRetry(ctx, obj)
+}
+
+func loadBalancerServicesFromSpec(specs []infrav1alpha1.HCloudLoadBalancerServiceSpec) []hcloudclient.LoadBalancerServiceInfo {
+	if len(specs) == 0 {
+		return nil
+	}
+	out := make([]hcloudclient.LoadBalancerServiceInfo, 0, len(specs))
+	for _, spec := range specs {
+		svc := hcloudclient.LoadBalancerServiceInfo{
+			Protocol:        spec.Protocol,
+			ListenPort:      int(spec.ListenPort),
+			DestinationPort: int(spec.DestinationPort),
+		}
+		if spec.Proxyprotocol != nil {
+			svc.Proxyprotocol = *spec.Proxyprotocol
+		}
+		if spec.HealthCheck != nil {
+			hc := hcloudclient.LoadBalancerHealthCheckInfo{
+				Protocol: spec.HealthCheck.Protocol,
+			}
+			if spec.HealthCheck.Port != nil {
+				port := int(*spec.HealthCheck.Port)
+				hc.Port = &port
+			}
+			if spec.HealthCheck.IntervalSeconds != nil {
+				interval := time.Duration(*spec.HealthCheck.IntervalSeconds) * time.Second
+				hc.Interval = &interval
+			}
+			if spec.HealthCheck.TimeoutSeconds != nil {
+				timeout := time.Duration(*spec.HealthCheck.TimeoutSeconds) * time.Second
+				hc.Timeout = &timeout
+			}
+			if spec.HealthCheck.Retries != nil {
+				retries := int(*spec.HealthCheck.Retries)
+				hc.Retries = &retries
+			}
+			if spec.HealthCheck.HTTP != nil {
+				hc.HTTP = &hcloudclient.LoadBalancerHealthCheckHTTPInfo{
+					Domain:      spec.HealthCheck.HTTP.Domain,
+					Path:        spec.HealthCheck.HTTP.Path,
+					Response:    spec.HealthCheck.HTTP.Response,
+					StatusCodes: append([]string{}, spec.HealthCheck.HTTP.StatusCodes...),
+					TLS:         spec.HealthCheck.HTTP.TLS,
+				}
+			}
+			svc.HealthCheck = &hc
+		}
+		out = append(out, svc)
+	}
+	return out
 }
 
 func (r *HCloudLoadBalancerReconciler) getSelectedServerIDs(ctx context.Context, selector *metav1.LabelSelector) ([]int64, error) {

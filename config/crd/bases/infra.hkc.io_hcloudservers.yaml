@@ -109,6 +109,10 @@ spec:
                 items:
                   type: string
                 type: array
+              upgradeDisk:
+                description: UpgradeDisk controls whether the local disk is upgraded
+                  when serverType changes via Hetzner change_type.
+                type: boolean
               userData:
                 description: |-
                   UserData is cloud-init user-data to pass to the server on first boot.

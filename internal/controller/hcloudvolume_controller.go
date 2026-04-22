@@ -192,6 +192,23 @@ func (r *HCloudVolumeReconciler) reconcileHCloudVolume(ctx context.Context, obj 
 		existing = created
 	}
 
+	if existing.Size < obj.Spec.Size {
+		log.Info("Resizing Hetzner volume", "volumeID", existing.ID, "from", existing.Size, "to", obj.Spec.Size)
+		if err := r.HCloudClient.ResizeVolume(ctx, existing.ID, obj.Spec.Size); err != nil {
+			return fmt.Errorf("resize volume: %w", err)
+		}
+		refreshed, err := r.HCloudClient.GetVolume(ctx, existing.ID)
+		if err != nil {
+			return fmt.Errorf("refresh volume after resize: %w", err)
+		}
+		if refreshed == nil {
+			return fmt.Errorf("volume %d disappeared after resize", existing.ID)
+		}
+		existing = refreshed
+	} else if existing.Size > obj.Spec.Size {
+		return fmt.Errorf("volume size %d GB in Hetzner exceeds spec.size %d GB; shrink is not supported", existing.Size, obj.Spec.Size)
+	}
+
 	// Attach if needed
 	if existing.ServerID != targetServerID {
 		if existing.ServerID != 0 {
@@ -214,6 +231,7 @@ func (r *HCloudVolumeReconciler) reconcileHCloudVolume(ctx context.Context, obj 
 	obj.Status.VolumeID = existing.ID
 	obj.Status.State = existing.State
 	obj.Status.AttachedServerID = existing.ServerID
+	obj.Status.AppliedSize = existing.Size
 	if existing.LinuxDevice != "" {
 		obj.Status.LinuxDevice = existing.LinuxDevice
 	}

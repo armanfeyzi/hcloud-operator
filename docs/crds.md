@@ -11,6 +11,7 @@ Manages a single Hetzner Cloud virtual server.
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `serverType` | string | Yes | Hetzner server type (e.g. `cx21`, `cpx31`). Can be updated after creation; the operator stops the VM, calls Hetzner `change_type`, then starts it again. |
+| `upgradeDisk` | bool | No | When true, disk is upgraded during a `serverType` change (Hetzner `change_type` with `upgrade_disk`). |
 | `image` | string | Yes | OS image (e.g. `ubuntu-22.04`, `debian-11`) |
 | `location` | string | Yes | Datacenter location (`fsn1`, `nbg1`, `hel1`, `ash`, `hil`) |
 | `labels` | map[string]string | No | Cloud resource labels |
@@ -55,7 +56,7 @@ Manages a single Hetzner Cloud volume and optional attachment to a server.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `size` | int | Yes | Size in GB (10-10240) |
+| `size` | int | Yes | Size in GB (10-10240). Can be **increased** after creation; shrink is rejected by validation and the API. |
 | `location` | string | Conditionally | Required when `serverRef` is not set |
 | `serverRef.name` | string | No | Name of target `HCloudServer` to attach (cluster-scoped reference by name) |
 | `format` | string | No | Filesystem type to create |
@@ -68,6 +69,7 @@ Manages a single Hetzner Cloud volume and optional attachment to a server.
 | `volumeID` | int64 | Hetzner Cloud volume ID |
 | `state` | string | Current state (e.g. `creating`, `available`) |
 | `attachedServerID` | int64 | Hetzner server ID this volume is currently attached to |
+| `appliedSize` | int | Last size in GB observed from Hetzner |
 | `linuxDevice` | string | Linux device path exposed by Hetzner (for attached volumes) |
 | `conditions` | []Condition | Status conditions (e.g. `Ready=True`) |
 
@@ -139,7 +141,20 @@ Manages a Hetzner Cloud Load Balancer and keeps its targets in sync with matchin
 | `networkZone` | string | No | Network zone (mutually exclusive with `location`) |
 | `algorithm` | string | No | Balancing algorithm (`round_robin` or `least_connections`) |
 | `serverSelector` | LabelSelector | No | Selects `HCloudServer` objects by Kubernetes labels |
+| `services` | []Service | No | Listener/target port definitions with optional health checks (keyed by `listenPort`) |
 | `labels` | map[string]string | No | Cloud resource labels |
+
+### Service fields (`services[]`)
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `listenPort` | int | Yes | Public listener port (1-65535) |
+| `destinationPort` | int | Yes | Target server port |
+| `protocol` | string | Yes | `tcp`, `http`, or `https` |
+| `proxyprotocol` | bool | No | Enable PROXY protocol |
+| `healthCheck` | object | No | Active health check settings |
+
+Health check fields: `protocol`, optional `port`, `intervalSeconds`, `timeoutSeconds`, `retries`, and optional `http` (`domain`, `path`, `response`, `statusCodes`, `tls`).
 
 ### Example
 

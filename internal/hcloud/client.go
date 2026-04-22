@@ -37,6 +37,7 @@ type ServerCreateOpts struct {
 type VolumeInfo struct {
 	ID          int64
 	Name        string
+	Size        int
 	State       string
 	ServerID    int64 // 0 if unattached
 	LinuxDevice string
@@ -60,6 +61,7 @@ type LoadBalancerInfo struct {
 	PublicIPv4 string
 	PublicIPv6 string
 	Targets    []int64
+	Services   []LoadBalancerServiceInfo
 }
 
 // LoadBalancerCreateOpts holds the parameters for creating a Hetzner Cloud load balancer.
@@ -160,6 +162,7 @@ type Interface interface {
 	DeleteVolume(ctx context.Context, id int64) error
 	AttachVolume(ctx context.Context, volumeID int64, serverID int64) error
 	DetachVolume(ctx context.Context, volumeID int64) error
+	ResizeVolume(ctx context.Context, volumeID int64, sizeGB int) error
 
 	GetLoadBalancer(ctx context.Context, id int64) (*LoadBalancerInfo, error)
 	GetLoadBalancerByName(ctx context.Context, name string) (*LoadBalancerInfo, error)
@@ -167,6 +170,7 @@ type Interface interface {
 	DeleteLoadBalancer(ctx context.Context, id int64) error
 	AttachServerToLoadBalancer(ctx context.Context, loadBalancerID int64, serverID int64) error
 	DetachServerFromLoadBalancer(ctx context.Context, loadBalancerID int64, serverID int64) error
+	SyncLoadBalancerServices(ctx context.Context, loadBalancerID int64, services []LoadBalancerServiceInfo) error
 
 	GetNetwork(ctx context.Context, id int64) (*NetworkInfo, error)
 	GetNetworkByName(ctx context.Context, name string) (*NetworkInfo, error)
@@ -599,10 +603,29 @@ func (c *Client) DetachVolume(ctx context.Context, volumeID int64) error {
 	return nil
 }
 
+// ResizeVolume increases a volume size in GB. Hetzner only supports increases.
+func (c *Client) ResizeVolume(ctx context.Context, volumeID int64, sizeGB int) error {
+	v, _, err := c.hc.Volume.GetByID(ctx, volumeID)
+	if err != nil {
+		return fmt.Errorf("hcloud: GetVolume(%d): %w", volumeID, err)
+	}
+	if v == nil {
+		return fmt.Errorf("hcloud: volume %d not found", volumeID)
+	}
+	if v.Size >= sizeGB {
+		return nil
+	}
+	if _, _, err := c.hc.Volume.Resize(ctx, v, sizeGB); err != nil {
+		return fmt.Errorf("hcloud: ResizeVolume(%d, %d): %w", volumeID, sizeGB, err)
+	}
+	return nil
+}
+
 func toVolumeInfo(v *hcloudgo.Volume) *VolumeInfo {
 	info := &VolumeInfo{
 		ID:          v.ID,
 		Name:        v.Name,
+		Size:        v.Size,
 		State:       string(v.Status),
 		LinuxDevice: v.LinuxDevice,
 	}
@@ -868,6 +891,9 @@ func toLoadBalancerInfo(lb *hcloudgo.LoadBalancer) *LoadBalancerInfo {
 		if target.Type == hcloudgo.LoadBalancerTargetTypeServer && target.Server != nil && target.Server.Server != nil {
 			info.Targets = append(info.Targets, target.Server.Server.ID)
 		}
+	}
+	for _, svc := range lb.Services {
+		info.Services = append(info.Services, serviceInfoFromSDK(svc))
 	}
 	return info
 }

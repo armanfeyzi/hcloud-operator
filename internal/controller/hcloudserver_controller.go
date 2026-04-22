@@ -360,7 +360,7 @@ func (r *HCloudServerReconciler) reconcileServerTypeMismatch(ctx context.Context
 		return resizeRequeueDelay, r.updateServerStatusWithRetry(ctx, obj)
 
 	case "off":
-		if err := r.HCloudClient.ChangeServerType(ctx, s.ID, desired, false); err != nil {
+		if err := r.HCloudClient.ChangeServerType(ctx, s.ID, desired, obj.Spec.UpgradeDisk); err != nil {
 			return 0, err
 		}
 		s2, err := r.HCloudClient.GetServer(ctx, s.ID)

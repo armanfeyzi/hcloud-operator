@@ -38,6 +38,97 @@ type HCloudLoadBalancerSpec struct {
 	// Labels to attach to the Hetzner Cloud load balancer resource.
 	// +optional
 	Labels map[string]string `json:"labels,omitempty"`
+
+	// Services defines front-end listeners, back-end ports, and optional health checks.
+	// Reconciled by listen port: services not listed are removed from Hetzner.
+	// +optional
+	// +listType=map
+	// +listMapKey=listenPort
+	Services []HCloudLoadBalancerServiceSpec `json:"services,omitempty"`
+}
+
+// HCloudLoadBalancerServiceSpec defines a load balancer service (listener + target port).
+type HCloudLoadBalancerServiceSpec struct {
+	// ListenPort is the public port the load balancer listens on.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
+	ListenPort int32 `json:"listenPort"`
+
+	// DestinationPort is the port on target servers.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
+	DestinationPort int32 `json:"destinationPort"`
+
+	// Protocol is tcp, http, or https.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Enum=tcp;http;https
+	Protocol string `json:"protocol"`
+
+	// Proxyprotocol enables PROXY protocol for this service.
+	// +optional
+	Proxyprotocol *bool `json:"proxyprotocol,omitempty"`
+
+	// HealthCheck configures active health checking for this service.
+	// +optional
+	HealthCheck *HCloudLoadBalancerHealthCheckSpec `json:"healthCheck,omitempty"`
+}
+
+// HCloudLoadBalancerHealthCheckSpec configures a load balancer health check.
+type HCloudLoadBalancerHealthCheckSpec struct {
+	// Protocol is tcp, http, or https.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Enum=tcp;http;https
+	Protocol string `json:"protocol"`
+
+	// Port is the health check port. Defaults to destinationPort when unset in Hetzner.
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
+	Port *int32 `json:"port,omitempty"`
+
+	// IntervalSeconds between health checks.
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	IntervalSeconds *int32 `json:"intervalSeconds,omitempty"`
+
+	// TimeoutSeconds before a check is considered failed.
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	TimeoutSeconds *int32 `json:"timeoutSeconds,omitempty"`
+
+	// Retries before marking a target unhealthy.
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	Retries *int32 `json:"retries,omitempty"`
+
+	// HTTP configures HTTP(S) health check options.
+	// +optional
+	HTTP *HCloudLoadBalancerHealthCheckHTTPSpec `json:"http,omitempty"`
+}
+
+// HCloudLoadBalancerHealthCheckHTTPSpec configures HTTP(S) health check paths and responses.
+type HCloudLoadBalancerHealthCheckHTTPSpec struct {
+	// Domain to send in the Host header.
+	// +optional
+	Domain *string `json:"domain,omitempty"`
+
+	// Path to request.
+	// +optional
+	Path *string `json:"path,omitempty"`
+
+	// Response substring to match in the response body.
+	// +optional
+	Response *string `json:"response,omitempty"`
+
+	// StatusCodes lists acceptable HTTP status codes (e.g. "2??", "3??").
+	// +optional
+	StatusCodes []string `json:"statusCodes,omitempty"`
+
+	// TLS enables TLS for the health check request.
+	// +optional
+	TLS *bool `json:"tls,omitempty"`
 }
 
 // HCloudLoadBalancerStatus defines the observed state of an HCloudLoadBalancer.
