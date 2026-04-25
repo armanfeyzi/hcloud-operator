@@ -123,6 +123,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err = (&controller.HCloudPrimaryIPReconciler{
+		Client:       mgr.GetClient(),
+		Scheme:       mgr.GetScheme(),
+		HCloudClient: hcloudclient.NewClient(hcloudToken),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "HCloudPrimaryIP")
+		os.Exit(1)
+	}
+
 	// ── Health / Readiness probes ──────────────────────────────────────────
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")

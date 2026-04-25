@@ -12,7 +12,7 @@ This table maps **Hetzner Cloud API resource families** to **HKIC CRDs**. It is 
 | **Networks** | `HCloudNetwork` | **Done** | Private networks, Cloud subnets per zone, labels |
 | **Firewalls** | `HCloudFirewall` | **Done** | Rules, labels, attach via `serverRefs` and/or Hetzner label selector |
 | **Placement Groups** | `HCloudPlacementGroup` | **Done** | Spread/cluster groups; `HCloudServer.spec.placementGroupRef` at create time (#2, #3) |
-| **Primary IPs** | `HCloudPrimaryIP` | **Planned** | Assignable IPv4/IPv6 (#4) |
+| **Primary IPs** | `HCloudPrimaryIP` | **Done** | IPv4/IPv6, datacenter, assign to server via `serverRef`, DNS PTR, autoDelete (#4) |
 | **Floating IPs** | `HCloudFloatingIP` | **Planned** (optional) | (#5) |
 | **Certificates** | `HCloudCertificate` | **Planned** | Managed certs; LB TLS integration (#6) |
 | **Volume snapshots** | `HCloudVolumeSnapshot` (TBD) | **Planned** | Spec model TBD (#7) |

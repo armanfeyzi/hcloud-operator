@@ -159,3 +159,29 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudprimaryips
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudprimaryips/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudprimaryips/status
+  verbs:
+  - get
+  - patch
+  - update

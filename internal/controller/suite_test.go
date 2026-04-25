@@ -81,6 +81,12 @@ func drainClusterCRs(ctx context.Context, c client.Client) {
 			_ = client.IgnoreNotFound(c.Delete(ctx, &pgs.Items[i]))
 		}
 	}
+	var pips infrav1alpha1.HCloudPrimaryIPList
+	if err := c.List(ctx, &pips); err == nil {
+		for i := range pips.Items {
+			_ = client.IgnoreNotFound(c.Delete(ctx, &pips.Items[i]))
+		}
+	}
 	_ = wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 20*time.Second, true, func(ctx context.Context) (bool, error) {
 		var s infrav1alpha1.HCloudServerList
 		if err := c.List(ctx, &s); err != nil {
@@ -122,6 +128,13 @@ func drainClusterCRs(ctx context.Context, c client.Client) {
 			return false, nil
 		}
 		if len(pg.Items) > 0 {
+			return false, nil
+		}
+		var pip infrav1alpha1.HCloudPrimaryIPList
+		if err := c.List(ctx, &pip); err != nil {
+			return false, nil
+		}
+		if len(pip.Items) > 0 {
 			return false, nil
 		}
 		return true, nil
@@ -225,6 +238,15 @@ func TestMain(m *testing.M) {
 		HCloudClient: fakeHCloud,
 	}).SetupWithManager(k8sManager); err != nil {
 		fmt.Printf("failed to setup placement group reconciler: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err = (&HCloudPrimaryIPReconciler{
+		Client:       k8sManager.GetClient(),
+		Scheme:       k8sManager.GetScheme(),
+		HCloudClient: fakeHCloud,
+	}).SetupWithManager(k8sManager); err != nil {
+		fmt.Printf("failed to setup primary IP reconciler: %v\n", err)
 		os.Exit(1)
 	}
 

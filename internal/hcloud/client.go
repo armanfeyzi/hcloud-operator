@@ -142,6 +142,37 @@ type PlacementGroupCreateOpts struct {
 	Labels map[string]string
 }
 
+// PrimaryIPInfo is a minimal view of a Hetzner Cloud primary IP.
+type PrimaryIPInfo struct {
+	ID           int64
+	Name         string
+	Type         string
+	IP           string
+	Datacenter   string
+	Labels       map[string]string
+	AssigneeID   int64
+	AssigneeType string
+	AutoDelete   bool
+	DNSPtr       map[string]string
+}
+
+// PrimaryIPCreateOpts holds parameters for creating a primary IP.
+type PrimaryIPCreateOpts struct {
+	Name         string
+	Type         string
+	Datacenter   string
+	Labels       map[string]string
+	AutoDelete   *bool
+	AssigneeID   int64
+	AssigneeType string
+}
+
+// PrimaryIPUpdateOpts holds parameters for updating a primary IP.
+type PrimaryIPUpdateOpts struct {
+	Labels     map[string]string
+	AutoDelete *bool
+}
+
 // Interface defines the Hetzner Cloud operations required by the controller.
 // Using an interface here allows the controller to be tested with a fake client
 // without making real API calls.
@@ -191,6 +222,15 @@ type Interface interface {
 	GetPlacementGroupByName(ctx context.Context, name string) (*PlacementGroupInfo, error)
 	CreatePlacementGroup(ctx context.Context, opts PlacementGroupCreateOpts) (*PlacementGroupInfo, error)
 	DeletePlacementGroup(ctx context.Context, id int64) error
+
+	GetPrimaryIP(ctx context.Context, id int64) (*PrimaryIPInfo, error)
+	GetPrimaryIPByName(ctx context.Context, name string) (*PrimaryIPInfo, error)
+	CreatePrimaryIP(ctx context.Context, opts PrimaryIPCreateOpts) (*PrimaryIPInfo, error)
+	DeletePrimaryIP(ctx context.Context, id int64) error
+	UpdatePrimaryIP(ctx context.Context, id int64, opts PrimaryIPUpdateOpts) error
+	AssignPrimaryIP(ctx context.Context, id int64, assigneeID int64, assigneeType string) error
+	UnassignPrimaryIP(ctx context.Context, id int64) error
+	ChangePrimaryIPDNSPtr(ctx context.Context, id int64, ip, dnsPtr string) error
 }
 
 // Client wraps the Hetzner Cloud API client with idempotent helpers.
@@ -967,4 +1007,161 @@ func toPlacementGroupInfo(pg *hcloudgo.PlacementGroup) *PlacementGroupInfo {
 		}
 	}
 	return info
+}
+
+func primaryIPAssigneeType(assigneeType string) string {
+	if assigneeType == "" {
+		return "server"
+	}
+	return assigneeType
+}
+
+func toPrimaryIPInfo(p *hcloudgo.PrimaryIP) *PrimaryIPInfo {
+	if p == nil {
+		return nil
+	}
+	info := &PrimaryIPInfo{
+		ID:           p.ID,
+		Name:         p.Name,
+		Type:         string(p.Type),
+		AssigneeID:   p.AssigneeID,
+		AssigneeType: p.AssigneeType,
+		AutoDelete:   p.AutoDelete,
+	}
+	if p.IP != nil {
+		info.IP = p.IP.String()
+	} else if p.Network != nil {
+		info.IP = p.Network.String()
+	}
+	if p.Datacenter != nil {
+		info.Datacenter = p.Datacenter.Name
+	}
+	if p.Labels != nil {
+		info.Labels = make(map[string]string, len(p.Labels))
+		for k, v := range p.Labels {
+			info.Labels[k] = v
+		}
+	}
+	if len(p.DNSPtr) > 0 {
+		info.DNSPtr = make(map[string]string, len(p.DNSPtr))
+		for k, v := range p.DNSPtr {
+			info.DNSPtr[k] = v
+		}
+	}
+	return info
+}
+
+// GetPrimaryIP fetches a primary IP by ID. Returns nil, nil if not found.
+func (c *Client) GetPrimaryIP(ctx context.Context, id int64) (*PrimaryIPInfo, error) {
+	p, _, err := c.hc.PrimaryIP.GetByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("hcloud: GetPrimaryIP(%d): %w", id, err)
+	}
+	if p == nil {
+		return nil, nil
+	}
+	return toPrimaryIPInfo(p), nil
+}
+
+// GetPrimaryIPByName fetches a primary IP by name. Returns nil, nil if not found.
+func (c *Client) GetPrimaryIPByName(ctx context.Context, name string) (*PrimaryIPInfo, error) {
+	p, _, err := c.hc.PrimaryIP.GetByName(ctx, name)
+	if err != nil {
+		return nil, fmt.Errorf("hcloud: GetPrimaryIPByName(%q): %w", name, err)
+	}
+	if p == nil {
+		return nil, nil
+	}
+	return toPrimaryIPInfo(p), nil
+}
+
+// CreatePrimaryIP creates a new primary IP in Hetzner Cloud.
+func (c *Client) CreatePrimaryIP(ctx context.Context, opts PrimaryIPCreateOpts) (*PrimaryIPInfo, error) {
+	createOpts := hcloudgo.PrimaryIPCreateOpts{
+		Name:         opts.Name,
+		Type:         hcloudgo.PrimaryIPType(opts.Type),
+		Datacenter:   opts.Datacenter,
+		Labels:       opts.Labels,
+		AutoDelete:   opts.AutoDelete,
+		AssigneeType: primaryIPAssigneeType(opts.AssigneeType),
+	}
+	if opts.AssigneeID != 0 {
+		assigneeID := opts.AssigneeID
+		createOpts.AssigneeID = &assigneeID
+	}
+	result, _, err := c.hc.PrimaryIP.Create(ctx, createOpts)
+	if err != nil {
+		return nil, fmt.Errorf("hcloud: CreatePrimaryIP %q: %w", opts.Name, err)
+	}
+	return toPrimaryIPInfo(result.PrimaryIP), nil
+}
+
+// DeletePrimaryIP deletes a primary IP by ID. Idempotent if not found.
+func (c *Client) DeletePrimaryIP(ctx context.Context, id int64) error {
+	p, _, err := c.hc.PrimaryIP.GetByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("hcloud: GetPrimaryIP(%d): %w", id, err)
+	}
+	if p == nil {
+		return nil
+	}
+	if _, err := c.hc.PrimaryIP.Delete(ctx, p); err != nil {
+		return fmt.Errorf("hcloud: DeletePrimaryIP(%d): %w", id, err)
+	}
+	return nil
+}
+
+// UpdatePrimaryIP updates mutable primary IP fields.
+func (c *Client) UpdatePrimaryIP(ctx context.Context, id int64, opts PrimaryIPUpdateOpts) error {
+	p, _, err := c.hc.PrimaryIP.GetByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("hcloud: GetPrimaryIP(%d): %w", id, err)
+	}
+	if p == nil {
+		return fmt.Errorf("hcloud: primary IP %d not found", id)
+	}
+	updateOpts := hcloudgo.PrimaryIPUpdateOpts{
+		Name:       p.Name,
+		AutoDelete: opts.AutoDelete,
+	}
+	if opts.Labels != nil {
+		labels := cloneStringMap(opts.Labels)
+		updateOpts.Labels = &labels
+	}
+	if _, _, err := c.hc.PrimaryIP.Update(ctx, p, updateOpts); err != nil {
+		return fmt.Errorf("hcloud: UpdatePrimaryIP(%d): %w", id, err)
+	}
+	return nil
+}
+
+// AssignPrimaryIP assigns a primary IP to an assignee (typically a server).
+func (c *Client) AssignPrimaryIP(ctx context.Context, id int64, assigneeID int64, assigneeType string) error {
+	if _, _, err := c.hc.PrimaryIP.Assign(ctx, hcloudgo.PrimaryIPAssignOpts{
+		ID:           id,
+		AssigneeID:   assigneeID,
+		AssigneeType: primaryIPAssigneeType(assigneeType),
+	}); err != nil {
+		return fmt.Errorf("hcloud: AssignPrimaryIP(%d, %d): %w", id, assigneeID, err)
+	}
+	return nil
+}
+
+// UnassignPrimaryIP removes the current assignee from a primary IP.
+func (c *Client) UnassignPrimaryIP(ctx context.Context, id int64) error {
+	if _, _, err := c.hc.PrimaryIP.Unassign(ctx, id); err != nil {
+		return fmt.Errorf("hcloud: UnassignPrimaryIP(%d): %w", id, err)
+	}
+	return nil
+}
+
+// ChangePrimaryIPDNSPtr sets reverse DNS for a primary IP address.
+func (c *Client) ChangePrimaryIPDNSPtr(ctx context.Context, id int64, ip, dnsPtr string) error {
+	if _, _, err := c.hc.PrimaryIP.ChangeDNSPtr(ctx, hcloudgo.PrimaryIPChangeDNSPtrOpts{
+		ID:     id,
+		IP:     ip,
+		DNSPtr: dnsPtr,
+	}); err != nil {
+		return fmt.Errorf("hcloud: ChangePrimaryIPDNSPtr(%d): %w", id, err)
+	}
+	return nil
 }

@@ -18,6 +18,7 @@ type FakeClient struct {
 	networks        map[int64]*NetworkInfo
 	firewalls       map[int64]*FirewallInfo
 	placementGroups map[int64]*PlacementGroupInfo
+	primaryIPs      map[int64]*PrimaryIPInfo
 	nextID          int64
 
 	// CreateErr, if non-nil, is returned by every CreateServer call.
@@ -40,6 +41,7 @@ func NewFakeClient() *FakeClient {
 		networks:        make(map[int64]*NetworkInfo),
 		firewalls:       make(map[int64]*FirewallInfo),
 		placementGroups: make(map[int64]*PlacementGroupInfo),
+		primaryIPs:      make(map[int64]*PrimaryIPInfo),
 		nextID:          1,
 	}
 }
@@ -54,6 +56,7 @@ func (f *FakeClient) Reset() {
 	f.networks = make(map[int64]*NetworkInfo)
 	f.firewalls = make(map[int64]*FirewallInfo)
 	f.placementGroups = make(map[int64]*PlacementGroupInfo)
+	f.primaryIPs = make(map[int64]*PrimaryIPInfo)
 	f.nextID = 1
 	f.CreateErr = nil
 	f.GetErr = nil
@@ -761,6 +764,131 @@ func (f *FakeClient) SyncLoadBalancerServices(ctx context.Context, loadBalancerI
 	return nil
 }
 
+func (f *FakeClient) GetPrimaryIP(ctx context.Context, id int64) (*PrimaryIPInfo, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.GetErr != nil {
+		return nil, f.GetErr
+	}
+	pip, ok := f.primaryIPs[id]
+	if !ok {
+		return nil, nil
+	}
+	return copyPrimaryIPInfo(pip), nil
+}
+
+func (f *FakeClient) GetPrimaryIPByName(ctx context.Context, name string) (*PrimaryIPInfo, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.GetErr != nil {
+		return nil, f.GetErr
+	}
+	for _, pip := range f.primaryIPs {
+		if pip.Name == name {
+			return copyPrimaryIPInfo(pip), nil
+		}
+	}
+	return nil, nil
+}
+
+func (f *FakeClient) CreatePrimaryIP(ctx context.Context, opts PrimaryIPCreateOpts) (*PrimaryIPInfo, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.CreateErr != nil {
+		return nil, f.CreateErr
+	}
+	for _, pip := range f.primaryIPs {
+		if pip.Name == opts.Name {
+			return nil, fmt.Errorf("fake: primary IP with name %q already exists", opts.Name)
+		}
+	}
+	id := f.nextID
+	f.nextID++
+	ip := "1.2.3." + fmt.Sprintf("%d", id)
+	if opts.Type == "ipv6" {
+		ip = fmt.Sprintf("2001:db8:primary::%d", id)
+	}
+	info := &PrimaryIPInfo{
+		ID:           id,
+		Name:         opts.Name,
+		Type:         opts.Type,
+		IP:           ip,
+		Datacenter:   opts.Datacenter,
+		Labels:       cloneStringMap(opts.Labels),
+		AssigneeType: primaryIPAssigneeType(opts.AssigneeType),
+		AutoDelete:   opts.AutoDelete != nil && *opts.AutoDelete,
+		DNSPtr:       map[string]string{},
+	}
+	if opts.AssigneeID != 0 {
+		info.AssigneeID = opts.AssigneeID
+	}
+	f.primaryIPs[id] = info
+	return copyPrimaryIPInfo(info), nil
+}
+
+func (f *FakeClient) DeletePrimaryIP(ctx context.Context, id int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.DeleteErr != nil {
+		return f.DeleteErr
+	}
+	delete(f.primaryIPs, id)
+	return nil
+}
+
+func (f *FakeClient) UpdatePrimaryIP(ctx context.Context, id int64, opts PrimaryIPUpdateOpts) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	pip, ok := f.primaryIPs[id]
+	if !ok {
+		return fmt.Errorf("fake: primary IP %d not found", id)
+	}
+	if opts.Labels != nil {
+		pip.Labels = cloneStringMap(opts.Labels)
+	}
+	if opts.AutoDelete != nil {
+		pip.AutoDelete = *opts.AutoDelete
+	}
+	return nil
+}
+
+func (f *FakeClient) AssignPrimaryIP(ctx context.Context, id int64, assigneeID int64, assigneeType string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	pip, ok := f.primaryIPs[id]
+	if !ok {
+		return fmt.Errorf("fake: primary IP %d not found", id)
+	}
+	pip.AssigneeID = assigneeID
+	pip.AssigneeType = primaryIPAssigneeType(assigneeType)
+	return nil
+}
+
+func (f *FakeClient) UnassignPrimaryIP(ctx context.Context, id int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	pip, ok := f.primaryIPs[id]
+	if !ok {
+		return fmt.Errorf("fake: primary IP %d not found", id)
+	}
+	pip.AssigneeID = 0
+	return nil
+}
+
+func (f *FakeClient) ChangePrimaryIPDNSPtr(ctx context.Context, id int64, ip, dnsPtr string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	pip, ok := f.primaryIPs[id]
+	if !ok {
+		return fmt.Errorf("fake: primary IP %d not found", id)
+	}
+	if pip.DNSPtr == nil {
+		pip.DNSPtr = map[string]string{}
+	}
+	pip.DNSPtr[ip] = dnsPtr
+	return nil
+}
+
 func (f *FakeClient) GetPlacementGroup(ctx context.Context, id int64) (*PlacementGroupInfo, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -857,6 +985,18 @@ func copyPlacementGroupInfo(pg *PlacementGroupInfo) *PlacementGroupInfo {
 	}
 	cp := *pg
 	cp.Labels = cloneStringMap(pg.Labels)
+	return &cp
+}
+
+func copyPrimaryIPInfo(pip *PrimaryIPInfo) *PrimaryIPInfo {
+	if pip == nil {
+		return nil
+	}
+	cp := *pip
+	cp.Labels = cloneStringMap(pip.Labels)
+	if pip.DNSPtr != nil {
+		cp.DNSPtr = cloneStringMap(pip.DNSPtr)
+	}
 	return &cp
 }
 

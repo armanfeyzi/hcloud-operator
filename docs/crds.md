@@ -272,3 +272,48 @@ spec:
   placementGroupRef:
     name: app-spread
 ```
+
+## `HCloudPrimaryIP`
+Group: `infra.hkc.io/v1alpha1`
+Scope: `Cluster`
+
+Manages a Hetzner Cloud primary IP (IPv4 or IPv6) with optional assignment to an `HCloudServer`.
+
+Primary IPs replace the default public addresses on servers when assigned. The referenced server must exist in the same datacenter family as the primary IP's datacenter.
+
+### Spec
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | string | Yes | `ipv4` or `ipv6`. Immutable after creation. |
+| `datacenter` | string | Yes | Hetzner datacenter (e.g. `fsn1-dc14`). Immutable after creation. |
+| `serverRef.name` | string | No | `HCloudServer` to assign this primary IP to |
+| `autoDelete` | bool | No | Delete the primary IP when the assignee is deleted |
+| `dnsPtr` | string | No | Reverse DNS entry for the allocated address |
+| `labels` | map[string]string | No | Cloud resource labels |
+
+### Status
+
+| Field | Type | Description |
+|---|---|---|
+| `primaryIPID` | int64 | Hetzner primary IP ID |
+| `ip` | string | Allocated address observed in Hetzner |
+| `datacenter` | string | Observed datacenter |
+| `appliedAssigneeID` | int64 | Hetzner server ID this primary IP is assigned to |
+| `conditions` | []Condition | e.g. `Ready=True` |
+
+### Example
+
+```yaml
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudPrimaryIP
+metadata:
+  name: app-ipv4
+spec:
+  type: ipv4
+  datacenter: fsn1-dc14
+  autoDelete: true
+  dnsPtr: app.example.com
+  serverRef:
+    name: web-node-1
+```

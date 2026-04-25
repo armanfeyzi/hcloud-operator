@@ -1,0 +1,13 @@
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudPrimaryIP
+metadata:
+  name: demo-ipv4
+spec:
+  type: ipv4
+  datacenter: fsn1-dc14
+  labels:
+    env: demo
+  autoDelete: true
+  dnsPtr: app.example.com
+  serverRef:
+    name: my-server
