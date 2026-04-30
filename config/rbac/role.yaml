@@ -185,3 +185,29 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudfloatingips
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudfloatingips/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudfloatingips/status
+  verbs:
+  - get
+  - patch
+  - update

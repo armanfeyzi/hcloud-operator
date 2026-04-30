@@ -1,0 +1,13 @@
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudFloatingIP
+metadata:
+  name: demo-floating-ipv4
+spec:
+  type: ipv4
+  location: fsn1
+  description: public ingress
+  labels:
+    env: demo
+  dnsPtr: app.example.com
+  serverRef:
+    name: my-server

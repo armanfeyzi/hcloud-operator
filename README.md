@@ -53,6 +53,7 @@ You can combine HKIC with orchestrators like [Kube Resource Orchestrator (kro)](
 - **Firewalls (`HCloudFirewall`):** Define Hetzner Cloud firewall rules and attach to servers by `HCloudServer` reference and/or a Hetzner label selector.
 - **Placement Groups (`HCloudPlacementGroup`):** Spread or cluster placement groups; reference from `HCloudServer.spec.placementGroupRef` at server creation.
 - **Primary IPs (`HCloudPrimaryIP`):** Allocate IPv4/IPv6 primary IPs, assign to servers via `serverRef`, set reverse DNS, and configure `autoDelete`.
+- **Floating IPs (`HCloudFloatingIP`):** Allocate IPv4/IPv6 floating IPs by location, assign to servers via `serverRef`, set reverse DNS, and sync description/labels.
 - **Idempotent Operations:** The controller is designed to handle API interruptions safely without creating duplicate infrastructure.
 
 ## Where to start

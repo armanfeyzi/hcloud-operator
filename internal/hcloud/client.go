@@ -173,6 +173,35 @@ type PrimaryIPUpdateOpts struct {
 	AutoDelete *bool
 }
 
+// FloatingIPInfo is a minimal view of a Hetzner Cloud floating IP.
+type FloatingIPInfo struct {
+	ID          int64
+	Name        string
+	Type        string
+	IP          string
+	Location    string
+	Description string
+	Labels      map[string]string
+	ServerID    int64
+	DNSPtr      map[string]string
+}
+
+// FloatingIPCreateOpts holds parameters for creating a floating IP.
+type FloatingIPCreateOpts struct {
+	Name        string
+	Type        string
+	Location    string
+	Labels      map[string]string
+	Description string
+	ServerID    int64
+}
+
+// FloatingIPUpdateOpts holds parameters for updating a floating IP.
+type FloatingIPUpdateOpts struct {
+	Labels      map[string]string
+	Description string
+}
+
 // Interface defines the Hetzner Cloud operations required by the controller.
 // Using an interface here allows the controller to be tested with a fake client
 // without making real API calls.
@@ -231,6 +260,15 @@ type Interface interface {
 	AssignPrimaryIP(ctx context.Context, id int64, assigneeID int64, assigneeType string) error
 	UnassignPrimaryIP(ctx context.Context, id int64) error
 	ChangePrimaryIPDNSPtr(ctx context.Context, id int64, ip, dnsPtr string) error
+
+	GetFloatingIP(ctx context.Context, id int64) (*FloatingIPInfo, error)
+	GetFloatingIPByName(ctx context.Context, name string) (*FloatingIPInfo, error)
+	CreateFloatingIP(ctx context.Context, opts FloatingIPCreateOpts) (*FloatingIPInfo, error)
+	DeleteFloatingIP(ctx context.Context, id int64) error
+	UpdateFloatingIP(ctx context.Context, id int64, opts FloatingIPUpdateOpts) error
+	AssignFloatingIP(ctx context.Context, id int64, serverID int64) error
+	UnassignFloatingIP(ctx context.Context, id int64) error
+	ChangeFloatingIPDNSPtr(ctx context.Context, id int64, ip, dnsPtr string) error
 }
 
 // Client wraps the Hetzner Cloud API client with idempotent helpers.
@@ -1162,6 +1200,193 @@ func (c *Client) ChangePrimaryIPDNSPtr(ctx context.Context, id int64, ip, dnsPtr
 		DNSPtr: dnsPtr,
 	}); err != nil {
 		return fmt.Errorf("hcloud: ChangePrimaryIPDNSPtr(%d): %w", id, err)
+	}
+	return nil
+}
+
+func toFloatingIPInfo(f *hcloudgo.FloatingIP) *FloatingIPInfo {
+	if f == nil {
+		return nil
+	}
+	info := &FloatingIPInfo{
+		ID:          f.ID,
+		Name:        f.Name,
+		Type:        string(f.Type),
+		Description: f.Description,
+	}
+	if f.IP != nil {
+		info.IP = f.IP.String()
+	} else if f.Network != nil {
+		info.IP = f.Network.String()
+	}
+	if f.HomeLocation != nil {
+		info.Location = f.HomeLocation.Name
+	}
+	if f.Server != nil {
+		info.ServerID = f.Server.ID
+	}
+	if f.Labels != nil {
+		info.Labels = make(map[string]string, len(f.Labels))
+		for k, v := range f.Labels {
+			info.Labels[k] = v
+		}
+	}
+	if len(f.DNSPtr) > 0 {
+		info.DNSPtr = make(map[string]string, len(f.DNSPtr))
+		for k, v := range f.DNSPtr {
+			info.DNSPtr[k] = v
+		}
+	}
+	return info
+}
+
+// GetFloatingIP fetches a floating IP by ID. Returns nil, nil if not found.
+func (c *Client) GetFloatingIP(ctx context.Context, id int64) (*FloatingIPInfo, error) {
+	f, _, err := c.hc.FloatingIP.GetByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("hcloud: GetFloatingIP(%d): %w", id, err)
+	}
+	if f == nil {
+		return nil, nil
+	}
+	return toFloatingIPInfo(f), nil
+}
+
+// GetFloatingIPByName fetches a floating IP by name. Returns nil, nil if not found.
+func (c *Client) GetFloatingIPByName(ctx context.Context, name string) (*FloatingIPInfo, error) {
+	f, _, err := c.hc.FloatingIP.GetByName(ctx, name)
+	if err != nil {
+		return nil, fmt.Errorf("hcloud: GetFloatingIPByName(%q): %w", name, err)
+	}
+	if f == nil {
+		return nil, nil
+	}
+	return toFloatingIPInfo(f), nil
+}
+
+// CreateFloatingIP creates a new floating IP in Hetzner Cloud.
+func (c *Client) CreateFloatingIP(ctx context.Context, opts FloatingIPCreateOpts) (*FloatingIPInfo, error) {
+	location, _, err := c.hc.Location.GetByName(ctx, opts.Location)
+	if err != nil {
+		return nil, fmt.Errorf("hcloud: resolve location %q: %w", opts.Location, err)
+	}
+	if location == nil {
+		return nil, fmt.Errorf("hcloud: location %q not found", opts.Location)
+	}
+
+	createOpts := hcloudgo.FloatingIPCreateOpts{
+		Type:         hcloudgo.FloatingIPType(opts.Type),
+		HomeLocation: location,
+		Labels:       opts.Labels,
+		Name:         &opts.Name,
+	}
+	if opts.Description != "" {
+		desc := opts.Description
+		createOpts.Description = &desc
+	}
+	if opts.ServerID != 0 {
+		server, _, err := c.hc.Server.GetByID(ctx, opts.ServerID)
+		if err != nil {
+			return nil, fmt.Errorf("hcloud: resolve server %d: %w", opts.ServerID, err)
+		}
+		if server == nil {
+			return nil, fmt.Errorf("hcloud: server %d not found", opts.ServerID)
+		}
+		createOpts.Server = server
+	}
+
+	result, _, err := c.hc.FloatingIP.Create(ctx, createOpts)
+	if err != nil {
+		return nil, fmt.Errorf("hcloud: CreateFloatingIP %q: %w", opts.Name, err)
+	}
+	return toFloatingIPInfo(result.FloatingIP), nil
+}
+
+// DeleteFloatingIP deletes a floating IP by ID. Idempotent if not found.
+func (c *Client) DeleteFloatingIP(ctx context.Context, id int64) error {
+	f, _, err := c.hc.FloatingIP.GetByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("hcloud: GetFloatingIP(%d): %w", id, err)
+	}
+	if f == nil {
+		return nil
+	}
+	if _, err := c.hc.FloatingIP.Delete(ctx, f); err != nil {
+		return fmt.Errorf("hcloud: DeleteFloatingIP(%d): %w", id, err)
+	}
+	return nil
+}
+
+// UpdateFloatingIP updates mutable floating IP fields.
+func (c *Client) UpdateFloatingIP(ctx context.Context, id int64, opts FloatingIPUpdateOpts) error {
+	f, _, err := c.hc.FloatingIP.GetByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("hcloud: GetFloatingIP(%d): %w", id, err)
+	}
+	if f == nil {
+		return fmt.Errorf("hcloud: floating IP %d not found", id)
+	}
+
+	updateOpts := hcloudgo.FloatingIPUpdateOpts{
+		Description: opts.Description,
+	}
+	if opts.Labels != nil {
+		updateOpts.Labels = cloneStringMap(opts.Labels)
+	}
+	if _, _, err := c.hc.FloatingIP.Update(ctx, f, updateOpts); err != nil {
+		return fmt.Errorf("hcloud: UpdateFloatingIP(%d): %w", id, err)
+	}
+	return nil
+}
+
+// AssignFloatingIP assigns a floating IP to a server.
+func (c *Client) AssignFloatingIP(ctx context.Context, id int64, serverID int64) error {
+	f, _, err := c.hc.FloatingIP.GetByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("hcloud: GetFloatingIP(%d): %w", id, err)
+	}
+	if f == nil {
+		return fmt.Errorf("hcloud: floating IP %d not found", id)
+	}
+	server, _, err := c.hc.Server.GetByID(ctx, serverID)
+	if err != nil {
+		return fmt.Errorf("hcloud: resolve server %d: %w", serverID, err)
+	}
+	if server == nil {
+		return fmt.Errorf("hcloud: server %d not found", serverID)
+	}
+	if _, _, err := c.hc.FloatingIP.Assign(ctx, f, server); err != nil {
+		return fmt.Errorf("hcloud: AssignFloatingIP(%d, %d): %w", id, serverID, err)
+	}
+	return nil
+}
+
+// UnassignFloatingIP removes the current server assignment from a floating IP.
+func (c *Client) UnassignFloatingIP(ctx context.Context, id int64) error {
+	f, _, err := c.hc.FloatingIP.GetByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("hcloud: GetFloatingIP(%d): %w", id, err)
+	}
+	if f == nil {
+		return fmt.Errorf("hcloud: floating IP %d not found", id)
+	}
+	if _, _, err := c.hc.FloatingIP.Unassign(ctx, f); err != nil {
+		return fmt.Errorf("hcloud: UnassignFloatingIP(%d): %w", id, err)
+	}
+	return nil
+}
+
+// ChangeFloatingIPDNSPtr sets reverse DNS for a floating IP address.
+func (c *Client) ChangeFloatingIPDNSPtr(ctx context.Context, id int64, ip, dnsPtr string) error {
+	f, _, err := c.hc.FloatingIP.GetByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("hcloud: GetFloatingIP(%d): %w", id, err)
+	}
+	if f == nil {
+		return fmt.Errorf("hcloud: floating IP %d not found", id)
+	}
+	if _, _, err := c.hc.FloatingIP.ChangeDNSPtr(ctx, f, ip, &dnsPtr); err != nil {
+		return fmt.Errorf("hcloud: ChangeFloatingIPDNSPtr(%d): %w", id, err)
 	}
 	return nil
 }

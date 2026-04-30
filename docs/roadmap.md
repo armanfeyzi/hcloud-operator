@@ -22,13 +22,14 @@ Tracked on GitHub milestone **[HKIC: Hetzner Cloud CRD coverage](https://github.
 - [x] `HCloudFirewall` — rules, attach via `serverRefs` / label selector
 - [x] `HCloudPlacementGroup` — spread/cluster groups; `HCloudServer.spec.placementGroupRef`
 - [x] `HCloudPrimaryIP` — IPv4/IPv6, datacenter, server assignment, DNS PTR
+- [x] `HCloudFloatingIP` — IPv4/IPv6, location, server assignment, DNS PTR, description
 
 ### In progress / planned
 
 - [x] **API coverage matrix** — [docs/hcloud-api-coverage.md](hcloud-api-coverage.md) (#1)
 - [x] **`HCloudPlacementGroup`** + `HCloudServer.spec.placementGroupRef` (#2, #3)
 - [x] **`HCloudPrimaryIP`** (#4)
-- [ ] **`HCloudFloatingIP`** (optional) (#5)
+- [x] **`HCloudFloatingIP`** (#5)
 - [ ] **`HCloudCertificate`** + LB TLS integration (#6)
 - [ ] **Volume snapshots** (`HCloudVolumeSnapshot` or spec model) (#7)
 - [ ] **`HCloudSSHKey`** (optional / low priority) (#8)

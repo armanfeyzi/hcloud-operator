@@ -317,3 +317,48 @@ spec:
   serverRef:
     name: web-node-1
 ```
+
+## `HCloudFloatingIP`
+Group: `infra.hkc.io/v1alpha1`
+Scope: `Cluster`
+
+Manages a Hetzner Cloud floating IP (IPv4 or IPv6) with optional assignment to an `HCloudServer`.
+
+Floating IPs provide a routable address that can be moved between servers in the same location.
+
+### Spec
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | string | Yes | `ipv4` or `ipv6`. Immutable after creation. |
+| `location` | string | Yes | Hetzner location (e.g. `fsn1`). Immutable after creation. |
+| `serverRef.name` | string | No | `HCloudServer` to assign this floating IP to |
+| `description` | string | No | Description stored on the Hetzner resource |
+| `dnsPtr` | string | No | Reverse DNS entry for the allocated address |
+| `labels` | map[string]string | No | Cloud resource labels |
+
+### Status
+
+| Field | Type | Description |
+|---|---|---|
+| `floatingIPID` | int64 | Hetzner floating IP ID |
+| `ip` | string | Allocated address observed in Hetzner |
+| `location` | string | Observed home location |
+| `appliedServerID` | int64 | Hetzner server ID this floating IP is assigned to |
+| `conditions` | []Condition | e.g. `Ready=True` |
+
+### Example
+
+```yaml
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudFloatingIP
+metadata:
+  name: ingress-ipv4
+spec:
+  type: ipv4
+  location: fsn1
+  description: public ingress
+  dnsPtr: app.example.com
+  serverRef:
+    name: web-node-1
+```

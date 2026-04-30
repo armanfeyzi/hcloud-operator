@@ -19,6 +19,7 @@ type FakeClient struct {
 	firewalls       map[int64]*FirewallInfo
 	placementGroups map[int64]*PlacementGroupInfo
 	primaryIPs      map[int64]*PrimaryIPInfo
+	floatingIPs     map[int64]*FloatingIPInfo
 	nextID          int64
 
 	// CreateErr, if non-nil, is returned by every CreateServer call.
@@ -42,6 +43,7 @@ func NewFakeClient() *FakeClient {
 		firewalls:       make(map[int64]*FirewallInfo),
 		placementGroups: make(map[int64]*PlacementGroupInfo),
 		primaryIPs:      make(map[int64]*PrimaryIPInfo),
+		floatingIPs:     make(map[int64]*FloatingIPInfo),
 		nextID:          1,
 	}
 }
@@ -57,6 +59,7 @@ func (f *FakeClient) Reset() {
 	f.firewalls = make(map[int64]*FirewallInfo)
 	f.placementGroups = make(map[int64]*PlacementGroupInfo)
 	f.primaryIPs = make(map[int64]*PrimaryIPInfo)
+	f.floatingIPs = make(map[int64]*FloatingIPInfo)
 	f.nextID = 1
 	f.CreateErr = nil
 	f.GetErr = nil
@@ -889,6 +892,127 @@ func (f *FakeClient) ChangePrimaryIPDNSPtr(ctx context.Context, id int64, ip, dn
 	return nil
 }
 
+func (f *FakeClient) GetFloatingIP(ctx context.Context, id int64) (*FloatingIPInfo, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.GetErr != nil {
+		return nil, f.GetErr
+	}
+	fip, ok := f.floatingIPs[id]
+	if !ok {
+		return nil, nil
+	}
+	return copyFloatingIPInfo(fip), nil
+}
+
+func (f *FakeClient) GetFloatingIPByName(ctx context.Context, name string) (*FloatingIPInfo, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.GetErr != nil {
+		return nil, f.GetErr
+	}
+	for _, fip := range f.floatingIPs {
+		if fip.Name == name {
+			return copyFloatingIPInfo(fip), nil
+		}
+	}
+	return nil, nil
+}
+
+func (f *FakeClient) CreateFloatingIP(ctx context.Context, opts FloatingIPCreateOpts) (*FloatingIPInfo, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.CreateErr != nil {
+		return nil, f.CreateErr
+	}
+	for _, fip := range f.floatingIPs {
+		if fip.Name == opts.Name {
+			return nil, fmt.Errorf("fake: floating IP with name %q already exists", opts.Name)
+		}
+	}
+	id := f.nextID
+	f.nextID++
+	ip := "203.0.113." + fmt.Sprintf("%d", id)
+	if opts.Type == "ipv6" {
+		ip = fmt.Sprintf("2001:db8:floating::%d", id)
+	}
+	info := &FloatingIPInfo{
+		ID:          id,
+		Name:        opts.Name,
+		Type:        opts.Type,
+		IP:          ip,
+		Location:    opts.Location,
+		Description: opts.Description,
+		Labels:      cloneStringMap(opts.Labels),
+		DNSPtr:      map[string]string{},
+	}
+	if opts.ServerID != 0 {
+		info.ServerID = opts.ServerID
+	}
+	f.floatingIPs[id] = info
+	return copyFloatingIPInfo(info), nil
+}
+
+func (f *FakeClient) DeleteFloatingIP(ctx context.Context, id int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.DeleteErr != nil {
+		return f.DeleteErr
+	}
+	delete(f.floatingIPs, id)
+	return nil
+}
+
+func (f *FakeClient) UpdateFloatingIP(ctx context.Context, id int64, opts FloatingIPUpdateOpts) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	fip, ok := f.floatingIPs[id]
+	if !ok {
+		return fmt.Errorf("fake: floating IP %d not found", id)
+	}
+	if opts.Labels != nil {
+		fip.Labels = cloneStringMap(opts.Labels)
+	}
+	fip.Description = opts.Description
+	return nil
+}
+
+func (f *FakeClient) AssignFloatingIP(ctx context.Context, id int64, serverID int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	fip, ok := f.floatingIPs[id]
+	if !ok {
+		return fmt.Errorf("fake: floating IP %d not found", id)
+	}
+	fip.ServerID = serverID
+	return nil
+}
+
+func (f *FakeClient) UnassignFloatingIP(ctx context.Context, id int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	fip, ok := f.floatingIPs[id]
+	if !ok {
+		return fmt.Errorf("fake: floating IP %d not found", id)
+	}
+	fip.ServerID = 0
+	return nil
+}
+
+func (f *FakeClient) ChangeFloatingIPDNSPtr(ctx context.Context, id int64, ip, dnsPtr string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	fip, ok := f.floatingIPs[id]
+	if !ok {
+		return fmt.Errorf("fake: floating IP %d not found", id)
+	}
+	if fip.DNSPtr == nil {
+		fip.DNSPtr = map[string]string{}
+	}
+	fip.DNSPtr[ip] = dnsPtr
+	return nil
+}
+
 func (f *FakeClient) GetPlacementGroup(ctx context.Context, id int64) (*PlacementGroupInfo, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -996,6 +1120,18 @@ func copyPrimaryIPInfo(pip *PrimaryIPInfo) *PrimaryIPInfo {
 	cp.Labels = cloneStringMap(pip.Labels)
 	if pip.DNSPtr != nil {
 		cp.DNSPtr = cloneStringMap(pip.DNSPtr)
+	}
+	return &cp
+}
+
+func copyFloatingIPInfo(fip *FloatingIPInfo) *FloatingIPInfo {
+	if fip == nil {
+		return nil
+	}
+	cp := *fip
+	cp.Labels = cloneStringMap(fip.Labels)
+	if fip.DNSPtr != nil {
+		cp.DNSPtr = cloneStringMap(fip.DNSPtr)
 	}
 	return &cp
 }
