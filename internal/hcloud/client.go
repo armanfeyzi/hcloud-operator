@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"time"
 
 	hcloudgo "github.com/hetznercloud/hcloud-go/v2/hcloud"
 )
@@ -202,6 +203,34 @@ type FloatingIPUpdateOpts struct {
 	Description string
 }
 
+// CertificateInfo is a minimal view of a Hetzner Cloud certificate.
+type CertificateInfo struct {
+	ID             int64
+	Name           string
+	Type           string
+	Labels         map[string]string
+	DomainNames    []string
+	Fingerprint    string
+	NotValidBefore time.Time
+	NotValidAfter  time.Time
+	IssuanceStatus string
+}
+
+// CertificateCreateOpts holds parameters for creating a certificate.
+type CertificateCreateOpts struct {
+	Name        string
+	Type        string
+	Labels      map[string]string
+	Certificate string
+	PrivateKey  string
+	DomainNames []string
+}
+
+// CertificateUpdateOpts holds parameters for updating a certificate.
+type CertificateUpdateOpts struct {
+	Labels map[string]string
+}
+
 // Interface defines the Hetzner Cloud operations required by the controller.
 // Using an interface here allows the controller to be tested with a fake client
 // without making real API calls.
@@ -269,6 +298,12 @@ type Interface interface {
 	AssignFloatingIP(ctx context.Context, id int64, serverID int64) error
 	UnassignFloatingIP(ctx context.Context, id int64) error
 	ChangeFloatingIPDNSPtr(ctx context.Context, id int64, ip, dnsPtr string) error
+
+	GetCertificate(ctx context.Context, id int64) (*CertificateInfo, error)
+	GetCertificateByName(ctx context.Context, name string) (*CertificateInfo, error)
+	CreateCertificate(ctx context.Context, opts CertificateCreateOpts) (*CertificateInfo, error)
+	DeleteCertificate(ctx context.Context, id int64) error
+	UpdateCertificate(ctx context.Context, id int64, opts CertificateUpdateOpts) error
 }
 
 // Client wraps the Hetzner Cloud API client with idempotent helpers.
@@ -1389,4 +1424,124 @@ func (c *Client) ChangeFloatingIPDNSPtr(ctx context.Context, id int64, ip, dnsPt
 		return fmt.Errorf("hcloud: ChangeFloatingIPDNSPtr(%d): %w", id, err)
 	}
 	return nil
+}
+
+func toCertificateInfo(cert *hcloudgo.Certificate) *CertificateInfo {
+	if cert == nil {
+		return nil
+	}
+	info := &CertificateInfo{
+		ID:             cert.ID,
+		Name:           cert.Name,
+		Type:           string(cert.Type),
+		DomainNames:    append([]string{}, cert.DomainNames...),
+		Fingerprint:    cert.Fingerprint,
+		NotValidBefore: cert.NotValidBefore,
+		NotValidAfter:  cert.NotValidAfter,
+	}
+	if cert.Labels != nil {
+		info.Labels = make(map[string]string, len(cert.Labels))
+		for k, v := range cert.Labels {
+			info.Labels[k] = v
+		}
+	}
+	if cert.Status != nil {
+		info.IssuanceStatus = string(cert.Status.Issuance)
+	}
+	return info
+}
+
+func certificateReady(info *CertificateInfo) bool {
+	if info == nil {
+		return false
+	}
+	if info.Type == string(hcloudgo.CertificateTypeUploaded) {
+		return true
+	}
+	switch info.IssuanceStatus {
+	case string(hcloudgo.CertificateStatusTypeCompleted):
+		return true
+	default:
+		return false
+	}
+}
+
+// GetCertificate fetches a certificate by ID. Returns nil, nil if not found.
+func (c *Client) GetCertificate(ctx context.Context, id int64) (*CertificateInfo, error) {
+	cert, _, err := c.hc.Certificate.GetByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("hcloud: GetCertificate(%d): %w", id, err)
+	}
+	if cert == nil {
+		return nil, nil
+	}
+	return toCertificateInfo(cert), nil
+}
+
+// GetCertificateByName fetches a certificate by name. Returns nil, nil if not found.
+func (c *Client) GetCertificateByName(ctx context.Context, name string) (*CertificateInfo, error) {
+	cert, _, err := c.hc.Certificate.GetByName(ctx, name)
+	if err != nil {
+		return nil, fmt.Errorf("hcloud: GetCertificateByName(%q): %w", name, err)
+	}
+	if cert == nil {
+		return nil, nil
+	}
+	return toCertificateInfo(cert), nil
+}
+
+// CreateCertificate creates a new certificate in Hetzner Cloud.
+func (c *Client) CreateCertificate(ctx context.Context, opts CertificateCreateOpts) (*CertificateInfo, error) {
+	createOpts := hcloudgo.CertificateCreateOpts{
+		Name:        opts.Name,
+		Type:        hcloudgo.CertificateType(opts.Type),
+		Labels:      opts.Labels,
+		Certificate: opts.Certificate,
+		PrivateKey:  opts.PrivateKey,
+		DomainNames: append([]string{}, opts.DomainNames...),
+	}
+	result, _, err := c.hc.Certificate.CreateCertificate(ctx, createOpts)
+	if err != nil {
+		return nil, fmt.Errorf("hcloud: CreateCertificate %q: %w", opts.Name, err)
+	}
+	return toCertificateInfo(result.Certificate), nil
+}
+
+// DeleteCertificate deletes a certificate by ID. Idempotent if not found.
+func (c *Client) DeleteCertificate(ctx context.Context, id int64) error {
+	cert, _, err := c.hc.Certificate.GetByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("hcloud: GetCertificate(%d): %w", id, err)
+	}
+	if cert == nil {
+		return nil
+	}
+	if _, err := c.hc.Certificate.Delete(ctx, cert); err != nil {
+		return fmt.Errorf("hcloud: DeleteCertificate(%d): %w", id, err)
+	}
+	return nil
+}
+
+// UpdateCertificate updates mutable certificate fields.
+func (c *Client) UpdateCertificate(ctx context.Context, id int64, opts CertificateUpdateOpts) error {
+	cert, _, err := c.hc.Certificate.GetByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("hcloud: GetCertificate(%d): %w", id, err)
+	}
+	if cert == nil {
+		return fmt.Errorf("hcloud: certificate %d not found", id)
+	}
+	updateOpts := hcloudgo.CertificateUpdateOpts{}
+	if opts.Labels != nil {
+		updateOpts.Labels = cloneStringMap(opts.Labels)
+	}
+	if _, _, err := c.hc.Certificate.Update(ctx, cert, updateOpts); err != nil {
+		return fmt.Errorf("hcloud: UpdateCertificate(%d): %w", id, err)
+	}
+	return nil
+}
+
+// CertificateReady reports whether a certificate can be attached to load balancers.
+func CertificateReady(info *CertificateInfo) bool {
+	return certificateReady(info)
 }

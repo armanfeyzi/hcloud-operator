@@ -211,3 +211,29 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudcertificates
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudcertificates/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudcertificates/status
+  verbs:
+  - get
+  - patch
+  - update

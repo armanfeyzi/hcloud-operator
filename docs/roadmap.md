@@ -23,6 +23,7 @@ Tracked on GitHub milestone **[HKIC: Hetzner Cloud CRD coverage](https://github.
 - [x] `HCloudPlacementGroup` — spread/cluster groups; `HCloudServer.spec.placementGroupRef`
 - [x] `HCloudPrimaryIP` — IPv4/IPv6, datacenter, server assignment, DNS PTR
 - [x] `HCloudFloatingIP` — IPv4/IPv6, location, server assignment, DNS PTR, description
+- [x] `HCloudCertificate` — uploaded/managed TLS certs; HTTPS listeners via `certificateRefs`
 
 ### In progress / planned
 
@@ -30,7 +31,7 @@ Tracked on GitHub milestone **[HKIC: Hetzner Cloud CRD coverage](https://github.
 - [x] **`HCloudPlacementGroup`** + `HCloudServer.spec.placementGroupRef` (#2, #3)
 - [x] **`HCloudPrimaryIP`** (#4)
 - [x] **`HCloudFloatingIP`** (#5)
-- [ ] **`HCloudCertificate`** + LB TLS integration (#6)
+- [x] **`HCloudCertificate`** + LB TLS integration (#6)
 - [ ] **Volume snapshots** (`HCloudVolumeSnapshot` or spec model) (#7)
 - [ ] **`HCloudSSHKey`** (optional / low priority) (#8)
 - [x] **Harden existing CRDs** — LB listeners/health, `upgradeDisk` on server, volume resize (#9)

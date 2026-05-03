@@ -93,6 +93,12 @@ func drainClusterCRs(ctx context.Context, c client.Client) {
 			_ = client.IgnoreNotFound(c.Delete(ctx, &fips.Items[i]))
 		}
 	}
+	var certs infrav1alpha1.HCloudCertificateList
+	if err := c.List(ctx, &certs); err == nil {
+		for i := range certs.Items {
+			_ = client.IgnoreNotFound(c.Delete(ctx, &certs.Items[i]))
+		}
+	}
 	_ = wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 20*time.Second, true, func(ctx context.Context) (bool, error) {
 		var s infrav1alpha1.HCloudServerList
 		if err := c.List(ctx, &s); err != nil {
@@ -148,6 +154,13 @@ func drainClusterCRs(ctx context.Context, c client.Client) {
 			return false, nil
 		}
 		if len(fip.Items) > 0 {
+			return false, nil
+		}
+		var cert infrav1alpha1.HCloudCertificateList
+		if err := c.List(ctx, &cert); err != nil {
+			return false, nil
+		}
+		if len(cert.Items) > 0 {
 			return false, nil
 		}
 		return true, nil
@@ -269,6 +282,15 @@ func TestMain(m *testing.M) {
 		HCloudClient: fakeHCloud,
 	}).SetupWithManager(k8sManager); err != nil {
 		fmt.Printf("failed to setup floating IP reconciler: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err = (&HCloudCertificateReconciler{
+		Client:       k8sManager.GetClient(),
+		Scheme:       k8sManager.GetScheme(),
+		HCloudClient: fakeHCloud,
+	}).SetupWithManager(k8sManager); err != nil {
+		fmt.Printf("failed to setup certificate reconciler: %v\n", err)
 		os.Exit(1)
 	}
 

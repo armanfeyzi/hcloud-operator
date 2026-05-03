@@ -152,6 +152,7 @@ Manages a Hetzner Cloud Load Balancer and keeps its targets in sync with matchin
 | `destinationPort` | int | Yes | Target server port |
 | `protocol` | string | Yes | `tcp`, `http`, or `https` |
 | `proxyprotocol` | bool | No | Enable PROXY protocol |
+| `certificateRefs` | []LocalObjectReference | No | `HCloudCertificate` resources for HTTPS listeners (required when `protocol` is `https`) |
 | `healthCheck` | object | No | Active health check settings |
 
 Health check fields: `protocol`, optional `port`, `intervalSeconds`, `timeoutSeconds`, `retries`, and optional `http` (`domain`, `path`, `response`, `statusCodes`, `tls`).
@@ -361,4 +362,47 @@ spec:
   dnsPtr: app.example.com
   serverRef:
     name: web-node-1
+```
+
+## `HCloudCertificate`
+Group: `infra.hkc.io/v1alpha1`
+Scope: `Cluster`
+
+Manages a Hetzner Cloud TLS certificate (uploaded or managed) for use with HTTPS load balancer listeners.
+
+### Spec
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | string | Yes | `uploaded` or `managed`. Immutable after creation. |
+| `certificate` | string | Cond. | PEM certificate chain for `uploaded` certificates |
+| `privateKey` | string | Cond. | PEM private key for `uploaded` certificates |
+| `domainNames` | []string | Cond. | Domains for `managed` certificates |
+| `labels` | map[string]string | No | Cloud resource labels |
+
+### Status
+
+| Field | Type | Description |
+|---|---|---|
+| `certificateID` | int64 | Hetzner certificate ID |
+| `domainNames` | []string | Observed domains |
+| `fingerprint` | string | Certificate fingerprint |
+| `notValidBefore` | Time | Validity start |
+| `notValidAfter` | Time | Validity end |
+| `issuanceStatus` | string | Managed certificate issuance state |
+| `conditions` | []Condition | e.g. `Ready=True` when issuance completes |
+
+Reference from `HCloudLoadBalancer.spec.services[].certificateRefs` for HTTPS listeners.
+
+### Example
+
+```yaml
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudCertificate
+metadata:
+  name: app-tls
+spec:
+  type: managed
+  domainNames:
+    - app.example.com
 ```

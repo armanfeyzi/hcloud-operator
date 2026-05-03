@@ -6,6 +6,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -125,6 +126,51 @@ var _ = Describe("HCloudLoadBalancerReconciler", func() {
 		Expect(info.Services[0].HealthCheck).NotTo(BeNil())
 		Expect(info.Services[0].HealthCheck.HTTP).NotTo(BeNil())
 		Expect(*info.Services[0].HealthCheck.HTTP.Path).To(Equal("/healthz"))
+	})
+
+	It("syncs HTTPS services with referenced certificates", func() {
+		certName := fmt.Sprintf("test-lb-cert-%d", time.Now().UnixNano())
+		cert := &infrav1alpha1.HCloudCertificate{
+			ObjectMeta: metav1.ObjectMeta{Name: certName},
+			Spec: infrav1alpha1.HCloudCertificateSpec{
+				Type:        "uploaded",
+				Certificate: "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n",
+				PrivateKey:  "-----BEGIN PRIVATE KEY-----\nMIIB\n-----END PRIVATE KEY-----\n",
+			},
+		}
+		Expect(k8sClient.Create(ctx, cert)).To(Succeed())
+		Eventually(func() int64 {
+			obj := &infrav1alpha1.HCloudCertificate{}
+			_ = k8sClient.Get(ctx, types.NamespacedName{Name: certName}, obj)
+			return obj.Status.CertificateID
+		}, waitTimeout, pollInterval).Should(BeNumerically(">", 0))
+
+		lb := newLoadBalancer(lbName, nil)
+		lb.Spec.Services = []infrav1alpha1.HCloudLoadBalancerServiceSpec{
+			{
+				ListenPort:      443,
+				DestinationPort: 8443,
+				Protocol:        "https",
+				CertificateRefs: []corev1.LocalObjectReference{{Name: certName}},
+			},
+		}
+		Expect(k8sClient.Create(ctx, lb)).To(Succeed())
+
+		Eventually(func() int64 {
+			obj := &infrav1alpha1.HCloudLoadBalancer{}
+			_ = k8sClient.Get(ctx, types.NamespacedName{Name: lbName}, obj)
+			return obj.Status.LoadBalancerID
+		}, waitTimeout, pollInterval).Should(BeNumerically(">", 0))
+
+		obj := &infrav1alpha1.HCloudLoadBalancer{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: lbName}, obj)).To(Succeed())
+		certObj := &infrav1alpha1.HCloudCertificate{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: certName}, certObj)).To(Succeed())
+		info, err := fakeHCloud.GetLoadBalancer(ctx, obj.Status.LoadBalancerID)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(info.Services).To(HaveLen(1))
+		Expect(info.Services[0].Protocol).To(Equal("https"))
+		Expect(info.Services[0].CertificateIDs).To(Equal([]int64{certObj.Status.CertificateID}))
 	})
 
 	It("detaches server targets when labels no longer match selector", func() {

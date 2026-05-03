@@ -54,6 +54,7 @@ You can combine HKIC with orchestrators like [Kube Resource Orchestrator (kro)](
 - **Placement Groups (`HCloudPlacementGroup`):** Spread or cluster placement groups; reference from `HCloudServer.spec.placementGroupRef` at server creation.
 - **Primary IPs (`HCloudPrimaryIP`):** Allocate IPv4/IPv6 primary IPs, assign to servers via `serverRef`, set reverse DNS, and configure `autoDelete`.
 - **Floating IPs (`HCloudFloatingIP`):** Allocate IPv4/IPv6 floating IPs by location, assign to servers via `serverRef`, set reverse DNS, and sync description/labels.
+- **Certificates (`HCloudCertificate`):** Upload or request managed TLS certificates; attach to HTTPS load balancer listeners via `certificateRefs`.
 - **Idempotent Operations:** The controller is designed to handle API interruptions safely without creating duplicate infrastructure.
 
 ## Where to start

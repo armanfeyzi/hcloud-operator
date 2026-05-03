@@ -33,6 +33,7 @@ type LoadBalancerServiceInfo struct {
 	ListenPort      int
 	DestinationPort int
 	Proxyprotocol   bool
+	CertificateIDs  []int64
 	HealthCheck     *LoadBalancerHealthCheckInfo
 }
 
@@ -91,6 +92,14 @@ func serviceInfoFromSDK(svc hcloudgo.LoadBalancerService) LoadBalancerServiceInf
 		ListenPort:      svc.ListenPort,
 		DestinationPort: svc.DestinationPort,
 		Proxyprotocol:   svc.Proxyprotocol,
+	}
+	if len(svc.HTTP.Certificates) > 0 {
+		info.CertificateIDs = make([]int64, len(svc.HTTP.Certificates))
+		for i, cert := range svc.HTTP.Certificates {
+			if cert != nil {
+				info.CertificateIDs[i] = cert.ID
+			}
+		}
 	}
 	if svc.HealthCheck.Protocol != "" {
 		hc := healthCheckInfoFromSDK(svc.HealthCheck)
@@ -153,6 +162,9 @@ func addServiceOptsFromInfo(svc LoadBalancerServiceInfo) hcloudgo.LoadBalancerAd
 	if svc.Proxyprotocol {
 		opts.Proxyprotocol = boolPtr(true)
 	}
+	if httpOpts := serviceHTTPOptsFromInfo(svc); httpOpts != nil {
+		opts.HTTP = httpOpts
+	}
 	if svc.HealthCheck != nil {
 		hc := addHealthCheckOptsFromInfo(*svc.HealthCheck)
 		opts.HealthCheck = &hc
@@ -170,11 +182,40 @@ func updateServiceOptsFromInfo(svc LoadBalancerServiceInfo) hcloudgo.LoadBalance
 	} else {
 		opts.Proxyprotocol = boolPtr(false)
 	}
+	if httpOpts := serviceUpdateHTTPOptsFromInfo(svc); httpOpts != nil {
+		opts.HTTP = httpOpts
+	}
 	if svc.HealthCheck != nil {
 		hc := updateHealthCheckOptsFromInfo(*svc.HealthCheck)
 		opts.HealthCheck = &hc
 	}
 	return opts
+}
+
+func serviceHTTPOptsFromInfo(svc LoadBalancerServiceInfo) *hcloudgo.LoadBalancerAddServiceOptsHTTP {
+	if len(svc.CertificateIDs) == 0 {
+		return nil
+	}
+	return &hcloudgo.LoadBalancerAddServiceOptsHTTP{
+		Certificates: certificatesFromIDs(svc.CertificateIDs),
+	}
+}
+
+func serviceUpdateHTTPOptsFromInfo(svc LoadBalancerServiceInfo) *hcloudgo.LoadBalancerUpdateServiceOptsHTTP {
+	if len(svc.CertificateIDs) == 0 {
+		return nil
+	}
+	return &hcloudgo.LoadBalancerUpdateServiceOptsHTTP{
+		Certificates: certificatesFromIDs(svc.CertificateIDs),
+	}
+}
+
+func certificatesFromIDs(ids []int64) []*hcloudgo.Certificate {
+	certs := make([]*hcloudgo.Certificate, len(ids))
+	for i, id := range ids {
+		certs[i] = &hcloudgo.Certificate{ID: id}
+	}
+	return certs
 }
 
 func addHealthCheckOptsFromInfo(hc LoadBalancerHealthCheckInfo) hcloudgo.LoadBalancerAddServiceOptsHealthCheck {
@@ -237,13 +278,26 @@ func servicesEqual(a, b LoadBalancerServiceInfo) bool {
 	if a.Protocol != b.Protocol ||
 		a.ListenPort != b.ListenPort ||
 		a.DestinationPort != b.DestinationPort ||
-		a.Proxyprotocol != b.Proxyprotocol {
+		a.Proxyprotocol != b.Proxyprotocol ||
+		!int64SlicesEqual(a.CertificateIDs, b.CertificateIDs) {
 		return false
 	}
 	if b.HealthCheck == nil {
 		return true
 	}
 	return healthChecksEqual(a.HealthCheck, b.HealthCheck)
+}
+
+func int64SlicesEqual(a, b []int64) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func healthChecksEqual(a, b *LoadBalancerHealthCheckInfo) bool {

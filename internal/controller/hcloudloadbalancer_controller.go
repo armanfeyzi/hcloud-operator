@@ -6,6 +6,8 @@ import (
 	"slices"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -29,6 +31,7 @@ const hcloudLoadBalancerFinalizer = "infra.hkc.io/loadbalancer-finalizer"
 // +kubebuilder:rbac:groups=infra.hkc.io,resources=hcloudloadbalancers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=infra.hkc.io,resources=hcloudloadbalancers/finalizers,verbs=update
 // +kubebuilder:rbac:groups=infra.hkc.io,resources=hcloudservers,verbs=get;list;watch
+// +kubebuilder:rbac:groups=infra.hkc.io,resources=hcloudcertificates,verbs=get;list;watch
 type HCloudLoadBalancerReconciler struct {
 	client.Client
 	Scheme       *runtime.Scheme
@@ -42,7 +45,36 @@ func (r *HCloudLoadBalancerReconciler) SetupWithManager(mgr ctrl.Manager) error 
 			&infrav1alpha1.HCloudServer{},
 			handler.EnqueueRequestsFromMapFunc(r.enqueueAllLoadBalancersForServerChange),
 		).
+		Watches(
+			&infrav1alpha1.HCloudCertificate{},
+			handler.EnqueueRequestsFromMapFunc(r.mapCertificateToLoadBalancers),
+		).
 		Complete(r)
+}
+
+func (r *HCloudLoadBalancerReconciler) mapCertificateToLoadBalancers(ctx context.Context, obj client.Object) []reconcile.Request {
+	cert, ok := obj.(*infrav1alpha1.HCloudCertificate)
+	if !ok {
+		return nil
+	}
+
+	var lbs infrav1alpha1.HCloudLoadBalancerList
+	if err := r.List(ctx, &lbs); err != nil {
+		return nil
+	}
+
+	requests := make([]reconcile.Request, 0)
+	for i := range lbs.Items {
+		for _, svc := range lbs.Items[i].Spec.Services {
+			for _, ref := range svc.CertificateRefs {
+				if ref.Name == cert.Name {
+					requests = append(requests, reconcile.Request{NamespacedName: types.NamespacedName{Name: lbs.Items[i].Name}})
+					break
+				}
+			}
+		}
+	}
+	return requests
 }
 
 // enqueueAllLoadBalancersForServerChange requeues every load balancer when any server changes
@@ -109,6 +141,24 @@ func (r *HCloudLoadBalancerReconciler) reconcileLoadBalancer(
 	obj *infrav1alpha1.HCloudLoadBalancer,
 	selectedServerIDs []int64,
 ) error {
+	desiredServices, pending, err := r.loadBalancerServicesFromSpec(ctx, obj.Spec.Services)
+	if err != nil {
+		return err
+	}
+	if pending {
+		r.setCondition(obj, conditionTypeReady, metav1.ConditionFalse, "CertificatePending", "Waiting for referenced HCloudCertificate resources")
+		return r.updateLoadBalancerStatusWithRetry(ctx, obj)
+	}
+
+	return r.reconcileLoadBalancerWithServices(ctx, obj, selectedServerIDs, desiredServices)
+}
+
+func (r *HCloudLoadBalancerReconciler) reconcileLoadBalancerWithServices(
+	ctx context.Context,
+	obj *infrav1alpha1.HCloudLoadBalancer,
+	selectedServerIDs []int64,
+	desiredServices []hcloudclient.LoadBalancerServiceInfo,
+) error {
 	var existing *hcloudclient.LoadBalancerInfo
 	var err error
 
@@ -165,7 +215,6 @@ func (r *HCloudLoadBalancerReconciler) reconcileLoadBalancer(
 		}
 	}
 
-	desiredServices := loadBalancerServicesFromSpec(obj.Spec.Services)
 	if err := r.HCloudClient.SyncLoadBalancerServices(ctx, existing.ID, desiredServices); err != nil {
 		return fmt.Errorf("sync load balancer services: %w", err)
 	}
@@ -187,11 +236,15 @@ func (r *HCloudLoadBalancerReconciler) reconcileLoadBalancer(
 	return r.updateLoadBalancerStatusWithRetry(ctx, obj)
 }
 
-func loadBalancerServicesFromSpec(specs []infrav1alpha1.HCloudLoadBalancerServiceSpec) []hcloudclient.LoadBalancerServiceInfo {
+func (r *HCloudLoadBalancerReconciler) loadBalancerServicesFromSpec(
+	ctx context.Context,
+	specs []infrav1alpha1.HCloudLoadBalancerServiceSpec,
+) ([]hcloudclient.LoadBalancerServiceInfo, bool, error) {
 	if len(specs) == 0 {
-		return nil
+		return nil, false, nil
 	}
 	out := make([]hcloudclient.LoadBalancerServiceInfo, 0, len(specs))
+	pending := false
 	for _, spec := range specs {
 		svc := hcloudclient.LoadBalancerServiceInfo{
 			Protocol:        spec.Protocol,
@@ -200,6 +253,16 @@ func loadBalancerServicesFromSpec(specs []infrav1alpha1.HCloudLoadBalancerServic
 		}
 		if spec.Proxyprotocol != nil {
 			svc.Proxyprotocol = *spec.Proxyprotocol
+		}
+		if len(spec.CertificateRefs) > 0 {
+			ids, certPending, err := r.resolveCertificateIDs(ctx, spec.CertificateRefs)
+			if err != nil {
+				return nil, false, err
+			}
+			if certPending {
+				pending = true
+			}
+			svc.CertificateIDs = ids
 		}
 		if spec.HealthCheck != nil {
 			hc := hcloudclient.LoadBalancerHealthCheckInfo{
@@ -234,7 +297,42 @@ func loadBalancerServicesFromSpec(specs []infrav1alpha1.HCloudLoadBalancerServic
 		}
 		out = append(out, svc)
 	}
-	return out
+	return out, pending, nil
+}
+
+func (r *HCloudLoadBalancerReconciler) resolveCertificateIDs(
+	ctx context.Context,
+	refs []corev1.LocalObjectReference,
+) ([]int64, bool, error) {
+	ids := make([]int64, 0, len(refs))
+	pending := false
+	for _, ref := range refs {
+		if ref.Name == "" {
+			continue
+		}
+		cert := &infrav1alpha1.HCloudCertificate{}
+		if err := r.Get(ctx, client.ObjectKey{Name: ref.Name}, cert); err != nil {
+			if apierrors.IsNotFound(err) {
+				pending = true
+				continue
+			}
+			return nil, false, fmt.Errorf("get referenced HCloudCertificate %q: %w", ref.Name, err)
+		}
+		if cert.Status.CertificateID == 0 {
+			pending = true
+			continue
+		}
+		info, err := r.HCloudClient.GetCertificate(ctx, cert.Status.CertificateID)
+		if err != nil {
+			return nil, false, fmt.Errorf("fetch Hetzner certificate %d: %w", cert.Status.CertificateID, err)
+		}
+		if info == nil || !hcloudclient.CertificateReady(info) {
+			pending = true
+			continue
+		}
+		ids = append(ids, cert.Status.CertificateID)
+	}
+	return ids, pending, nil
 }
 
 func (r *HCloudLoadBalancerReconciler) getSelectedServerIDs(ctx context.Context, selector *metav1.LabelSelector) ([]int64, error) {

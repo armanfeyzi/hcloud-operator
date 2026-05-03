@@ -1,0 +1,10 @@
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudCertificate
+metadata:
+  name: app-tls
+spec:
+  type: managed
+  domainNames:
+    - app.example.com
+  labels:
+    env: demo

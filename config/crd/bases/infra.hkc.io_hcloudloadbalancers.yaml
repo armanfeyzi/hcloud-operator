@@ -133,6 +133,22 @@ spec:
                   description: HCloudLoadBalancerServiceSpec defines a load balancer
                     service (listener + target port).
                   properties:
+                    certificateRefs:
+                      description: CertificateRefs lists HCloudCertificate resources
+                        attached to HTTPS listeners.
+                      items:
+                        description: |-
+                          LocalObjectReference contains enough information to let you locate the
+                          referenced object inside the same namespace.
+                        properties:
+                          name:
+                            description: |-
+                              Name of the referent.
+                              More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                            type: string
+                        type: object
+                        x-kubernetes-map-type: atomic
+                      type: array
                     destinationPort:
                       description: DestinationPort is the port on target servers.
                       format: int32
@@ -221,6 +237,10 @@ spec:
                   - listenPort
                   - protocol
                   type: object
+                  x-kubernetes-validations:
+                  - message: certificateRefs required when protocol is https
+                    rule: self.protocol != 'https' || self.certificateRefs.size()
+                      > 0
                 type: array
                 x-kubernetes-list-map-keys:
                 - listenPort

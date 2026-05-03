@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -48,6 +49,7 @@ type HCloudLoadBalancerSpec struct {
 }
 
 // HCloudLoadBalancerServiceSpec defines a load balancer service (listener + target port).
+// +kubebuilder:validation:XValidation:rule="self.protocol != 'https' || self.certificateRefs.size() > 0",message="certificateRefs required when protocol is https"
 type HCloudLoadBalancerServiceSpec struct {
 	// ListenPort is the public port the load balancer listens on.
 	// +kubebuilder:validation:Required
@@ -73,6 +75,10 @@ type HCloudLoadBalancerServiceSpec struct {
 	// HealthCheck configures active health checking for this service.
 	// +optional
 	HealthCheck *HCloudLoadBalancerHealthCheckSpec `json:"healthCheck,omitempty"`
+
+	// CertificateRefs lists HCloudCertificate resources attached to HTTPS listeners.
+	// +optional
+	CertificateRefs []corev1.LocalObjectReference `json:"certificateRefs,omitempty"`
 }
 
 // HCloudLoadBalancerHealthCheckSpec configures a load balancer health check.

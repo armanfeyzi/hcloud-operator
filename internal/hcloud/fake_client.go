@@ -20,6 +20,7 @@ type FakeClient struct {
 	placementGroups map[int64]*PlacementGroupInfo
 	primaryIPs      map[int64]*PrimaryIPInfo
 	floatingIPs     map[int64]*FloatingIPInfo
+	certificates    map[int64]*CertificateInfo
 	nextID          int64
 
 	// CreateErr, if non-nil, is returned by every CreateServer call.
@@ -44,6 +45,7 @@ func NewFakeClient() *FakeClient {
 		placementGroups: make(map[int64]*PlacementGroupInfo),
 		primaryIPs:      make(map[int64]*PrimaryIPInfo),
 		floatingIPs:     make(map[int64]*FloatingIPInfo),
+		certificates:    make(map[int64]*CertificateInfo),
 		nextID:          1,
 	}
 }
@@ -60,6 +62,7 @@ func (f *FakeClient) Reset() {
 	f.placementGroups = make(map[int64]*PlacementGroupInfo)
 	f.primaryIPs = make(map[int64]*PrimaryIPInfo)
 	f.floatingIPs = make(map[int64]*FloatingIPInfo)
+	f.certificates = make(map[int64]*CertificateInfo)
 	f.nextID = 1
 	f.CreateErr = nil
 	f.GetErr = nil
@@ -1136,6 +1139,96 @@ func copyFloatingIPInfo(fip *FloatingIPInfo) *FloatingIPInfo {
 	return &cp
 }
 
+func (f *FakeClient) GetCertificate(ctx context.Context, id int64) (*CertificateInfo, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.GetErr != nil {
+		return nil, f.GetErr
+	}
+	cert, ok := f.certificates[id]
+	if !ok {
+		return nil, nil
+	}
+	return copyCertificateInfo(cert), nil
+}
+
+func (f *FakeClient) GetCertificateByName(ctx context.Context, name string) (*CertificateInfo, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.GetErr != nil {
+		return nil, f.GetErr
+	}
+	for _, cert := range f.certificates {
+		if cert.Name == name {
+			return copyCertificateInfo(cert), nil
+		}
+	}
+	return nil, nil
+}
+
+func (f *FakeClient) CreateCertificate(ctx context.Context, opts CertificateCreateOpts) (*CertificateInfo, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.CreateErr != nil {
+		return nil, f.CreateErr
+	}
+	for _, cert := range f.certificates {
+		if cert.Name == opts.Name {
+			return nil, fmt.Errorf("fake: certificate with name %q already exists", opts.Name)
+		}
+	}
+	id := f.nextID
+	f.nextID++
+	issuance := "completed"
+	if opts.Type == "managed" {
+		issuance = "completed"
+	}
+	info := &CertificateInfo{
+		ID:             id,
+		Name:           opts.Name,
+		Type:           opts.Type,
+		Labels:         cloneStringMap(opts.Labels),
+		DomainNames:    append([]string{}, opts.DomainNames...),
+		Fingerprint:    fmt.Sprintf("fake-fingerprint-%d", id),
+		IssuanceStatus: issuance,
+	}
+	f.certificates[id] = info
+	return copyCertificateInfo(info), nil
+}
+
+func (f *FakeClient) DeleteCertificate(ctx context.Context, id int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.DeleteErr != nil {
+		return f.DeleteErr
+	}
+	delete(f.certificates, id)
+	return nil
+}
+
+func (f *FakeClient) UpdateCertificate(ctx context.Context, id int64, opts CertificateUpdateOpts) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	cert, ok := f.certificates[id]
+	if !ok {
+		return fmt.Errorf("fake: certificate %d not found", id)
+	}
+	if opts.Labels != nil {
+		cert.Labels = cloneStringMap(opts.Labels)
+	}
+	return nil
+}
+
+func copyCertificateInfo(cert *CertificateInfo) *CertificateInfo {
+	if cert == nil {
+		return nil
+	}
+	cp := *cert
+	cp.Labels = cloneStringMap(cert.Labels)
+	cp.DomainNames = append([]string{}, cert.DomainNames...)
+	return &cp
+}
+
 func cloneLoadBalancerServices(services []LoadBalancerServiceInfo) []LoadBalancerServiceInfo {
 	if len(services) == 0 {
 		return nil
@@ -1143,6 +1236,7 @@ func cloneLoadBalancerServices(services []LoadBalancerServiceInfo) []LoadBalance
 	out := make([]LoadBalancerServiceInfo, len(services))
 	for i, svc := range services {
 		out[i] = svc
+		out[i].CertificateIDs = append([]int64{}, svc.CertificateIDs...)
 		if svc.HealthCheck != nil {
 			hc := *svc.HealthCheck
 			if svc.HealthCheck.HTTP != nil {
