@@ -32,7 +32,7 @@ Tracked on GitHub milestone **[HKIC: Hetzner Cloud CRD coverage](https://github.
 - [x] **`HCloudPrimaryIP`** (#4)
 - [x] **`HCloudFloatingIP`** (#5)
 - [x] **`HCloudCertificate`** + LB TLS integration (#6)
-- [ ] **Volume snapshots** (`HCloudVolumeSnapshot` or spec model) (#7)
+- [x] **Volume snapshots** — **N/A**; Hetzner Cloud has no volume snapshot API (#7 closed)
 - [ ] **`HCloudSSHKey`** (optional / low priority) (#8)
 - [x] **Harden existing CRDs** — LB listeners/health, `upgradeDisk` on server, volume resize (#9)
 
