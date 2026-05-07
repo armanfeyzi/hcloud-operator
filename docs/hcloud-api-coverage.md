@@ -16,7 +16,7 @@ This table maps **Hetzner Cloud API resource families** to **HKIC CRDs**. It is 
 | **Floating IPs** | `HCloudFloatingIP` | **Done** | IPv4/IPv6, location, assign to server via `serverRef`, DNS PTR, description (#5) |
 | **Certificates** | `HCloudCertificate` | **Done** | Uploaded/managed certs; LB HTTPS via `certificateRefs` (#6) |
 | **Volume snapshots** | — | **N/A** | No Hetzner Cloud API for volume snapshots; use app-level backup or server snapshot → `Image` (#7 closed) |
-| **SSH Keys** | `HCloudSSHKey` | **Planned** (low) | Today: pass key **names** on `HCloudServer.spec.sshKeys` only (#8) |
+| **SSH Keys** | — (optional `HCloudSSHKey`) | **Partial** | Reference existing key **names** on `HCloudServer.spec.sshKeys`; dedicated CRD optional, low priority (#8) |
 | **Images** | — | **N/A** | Referenced by name on server create; catalog is read-only in Hetzner |
 | **Server types** | — | **N/A** | Referenced by name on server create |
 | **Locations / datacenters** | — | **N/A** | Referenced by name on create |

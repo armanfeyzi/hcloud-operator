@@ -9,32 +9,44 @@ The **primary** goal of **Hetzner Kubernetes Infrastructure Controller (HKIC)** 
 1. **Hetzner Cloud API coverage (main track):** add and harden CRDs/reconcilers for the resource types teams use (servers, networks, volumes, load balancers, firewalls, placement groups, …). Users adopt **any subset**. Progress: [docs/hcloud-api-coverage.md](hcloud-api-coverage.md).
 2. **Composition recipes (optional track):** examples that wire primitives together. Includes k3s/hetzner-k3s-oriented docs under `docs/k3s-*` and `config/samples/complex/k3s-*`.
 
-## Main track: Hetzner Cloud API coverage
+## Current focus — Milestone 2: Operator & GitOps platform
 
-Tracked on GitHub milestone **[HKIC: Hetzner Cloud CRD coverage](https://github.com/armanfeyzi/hcloud-operator/milestone/1)** (issues #1–#9).
+**Milestone 1 (Hetzner Cloud CRD coverage) is complete** except optional deferred work ([#8](https://github.com/armanfeyzi/hcloud-operator/issues/8) SSH keys). Production GitOps adoption now depends on **install paths and examples**, not new resource CRDs.
+
+Tracked on GitHub milestone **[HKIC: Operator & GitOps platform](https://github.com/armanfeyzi/hcloud-operator/milestone/2)** (issues #11–#16). **Next sprint:** [#12 Helm chart](https://github.com/armanfeyzi/hcloud-operator/issues/12) and [#13 Argo CD examples](https://github.com/armanfeyzi/hcloud-operator/issues/13) — see [docs/sprint-platform-gitops.md](sprint-platform-gitops.md).
+
+| Priority | Work | Issue |
+|---|---|---|
+| **High (now)** | Helm chart — operator image, token secret, values for install/upgrade | #12 |
+| **High (now)** | Argo CD Application(s) — sync waves for a full HKIC stack | #13 |
+| Medium | Observability — Events, Prometheus metrics, richer conditions | #11 |
+| Medium | kro / Crossplane composition recipes | #16 |
+| Lower | Multi-cluster / multi-token docs | #15 |
+| Lower | Optional CI E2E against real Hetzner | #14 |
+| Deferred (M1) | `HCloudSSHKey` CRD — reference-by-name on Server is enough for most teams | #8 |
+
+## Milestone 1 — Hetzner Cloud API coverage — **Complete**
+
+Tracked on GitHub milestone **[HKIC: Hetzner Cloud CRD coverage](https://github.com/armanfeyzi/hcloud-operator/milestone/1)** (issues #1–#9). All planned CRDs and hardening for this milestone are **shipped**; only optional SSH key lifecycle remains open.
 
 ### Shipped (v1alpha1)
 
-- [x] `HCloudServer` — create / delete / adopt-by-name, type changes, `networkRef`
-- [x] `HCloudVolume` — lifecycle, attach via `serverRef`
-- [x] `HCloudLoadBalancer` — lifecycle, target sync via `serverSelector`
+- [x] `HCloudServer` — create / delete / adopt-by-name, type changes, `networkRef`, optional `upgradeDisk`
+- [x] `HCloudVolume` — lifecycle, attach via `serverRef`, **resize**
+- [x] `HCloudLoadBalancer` — lifecycle, target sync, **services + health checks**, TLS via `certificateRefs`
 - [x] `HCloudNetwork` — private networks, Cloud subnets
 - [x] `HCloudFirewall` — rules, attach via `serverRefs` / label selector
-- [x] `HCloudPlacementGroup` — spread/cluster groups; `HCloudServer.spec.placementGroupRef`
-- [x] `HCloudPrimaryIP` — IPv4/IPv6, datacenter, server assignment, DNS PTR
-- [x] `HCloudFloatingIP` — IPv4/IPv6, location, server assignment, DNS PTR, description
-- [x] `HCloudCertificate` — uploaded/managed TLS certs; HTTPS listeners via `certificateRefs`
-
-### In progress / planned
-
+- [x] `HCloudPlacementGroup` — spread/cluster groups; `HCloudServer.spec.placementGroupRef` (#2, #3)
+- [x] `HCloudPrimaryIP` — IPv4/IPv6, datacenter, server assignment, DNS PTR (#4)
+- [x] `HCloudFloatingIP` — IPv4/IPv6, location, server assignment, DNS PTR (#5)
+- [x] `HCloudCertificate` — uploaded/managed TLS certs; HTTPS listeners via `certificateRefs` (#6)
 - [x] **API coverage matrix** — [docs/hcloud-api-coverage.md](hcloud-api-coverage.md) (#1)
-- [x] **`HCloudPlacementGroup`** + `HCloudServer.spec.placementGroupRef` (#2, #3)
-- [x] **`HCloudPrimaryIP`** (#4)
-- [x] **`HCloudFloatingIP`** (#5)
-- [x] **`HCloudCertificate`** + LB TLS integration (#6)
 - [x] **Volume snapshots** — **N/A**; Hetzner Cloud has no volume snapshot API (#7 closed)
-- [ ] **`HCloudSSHKey`** (optional / low priority) (#8)
 - [x] **Harden existing CRDs** — LB listeners/health, `upgradeDisk` on server, volume resize (#9)
+
+### Deferred (optional, low priority)
+
+- [ ] **`HCloudSSHKey`** — Hetzner API object exists, but ACK-style stacks typically reference existing key **names** on `HCloudServer.spec.sshKeys`; dedicated CRD only if fully declarative key lifecycle is required (#8)
 
 ## Phase 1: MVP — **Complete**
 - [x] Project scaffolding
@@ -42,7 +54,7 @@ Tracked on GitHub milestone **[HKIC: Hetzner Cloud CRD coverage](https://github.
 - [x] Status sync (IPs, state, conditions)
 - [x] Finalizer-based cleanup
 
-## Phase 2: Compute & storage — **Mostly complete**
+## Phase 2: Compute & storage — **Complete**
 - [x] Server vertical scaling (`spec.serverType` changes via power off → `change_type` → power on; `status.appliedServerType`)
 - [x] Optional **`upgradeDisk`** on type change (`HCloudServer.spec.upgradeDisk`)
 - [x] `HCloudVolume` CRD and reconciler
@@ -51,16 +63,16 @@ Tracked on GitHub milestone **[HKIC: Hetzner Cloud CRD coverage](https://github.
 - [x] Load balancer reconciler watches `HCloudServer` so label / status changes re-sync targets without waiting for periodic requeue
 - [x] **`Watches` on `HCloudServer` from `HCloudVolume`** — re-attach as soon as `status.serverID` appears
 - [x] **Conflict-safe status updates** — retry-on-conflict for controller status writes
-- [ ] **Observability** — Kubernetes `Events`, Prometheus metrics, richer conditions (#11)
+- [ ] **Observability** — Kubernetes `Events`, Prometheus metrics, richer conditions (#11) — **Milestone 2**
 
 ## Phase 3: Networking — **Complete**
 - [x] `HCloudNetwork` CRD and reconciler
 - [x] Attach Cloud Servers to `HCloudNetwork` (`HCloudServer.spec.networkRef`)
 - [x] `HCloudFirewall` CRD and reconciler
 
-## Phase 4: GitOps & platform engineering
-- [ ] **Helm chart** (image, token secret, optional feature flags) — primary install path alongside kustomize (#12)
-- [ ] Argo CD Application examples / patterns (#13)
+## Phase 4: GitOps & platform engineering — **Current focus**
+- [ ] **Helm chart** (image, token secret, optional feature flags) — primary install path alongside kustomize (#12) — **next sprint**
+- [ ] Argo CD Application examples / patterns (#13) — **next sprint**
 - [ ] Optional **CI E2E** against real Hetzner when `HCLOUD_TOKEN` is present in repo secrets (#14)
 - [ ] Multi-cluster / multi-token patterns (documentation first) (#15)
 - [ ] Higher-level abstractions with [kro](https://github.com/kubernetes-sigs/kro) or Crossplane Compositions (recipes + docs) (#16)
@@ -84,8 +96,8 @@ Tracked on GitHub milestone **[HKIC: Hetzner Cloud CRD coverage](https://github.
 
 Work is tracked on GitHub under **[Milestones](https://github.com/armanfeyzi/hcloud-operator/milestones)**:
 
-| Milestone | Focus |
-|---|---|
-| **HKIC: Hetzner Cloud CRD coverage** | Main ACK track — new CRDs, hardening (#1–#9) |
-| **HKIC: Operator & GitOps platform** | Helm, Argo, observability, CI (#11–#16) |
-| **HKIC: Parity & verification** | Optional k3s recipe verification (#10) |
+| Milestone | Focus | Status |
+|---|---|---|
+| **HKIC: Hetzner Cloud CRD coverage** | Main ACK track — CRDs + hardening (#1–#9) | **Complete** (optional #8 deferred) |
+| **HKIC: Operator & GitOps platform** | Helm, Argo, observability, CI (#11–#16) | **Active — current focus** |
+| **HKIC: Parity & verification** | Optional k3s recipe verification (#10) | Optional |
