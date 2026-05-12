@@ -1,0 +1,14 @@
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudVolume
+metadata:
+  name: gitops-demo-web-data
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  size: 20
+  format: ext4
+  serverRef:
+    name: gitops-demo-web
+  labels:
+    env: gitops-demo
+    managed-by: argocd

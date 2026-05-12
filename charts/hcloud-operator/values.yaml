@@ -1,0 +1,45 @@
+# Default values for hcloud-operator.
+
+namespace:
+  create: true
+  name: hcloud-operator-system
+
+image:
+  repository: ghcr.io/armanfeyzi/hcloud-operator
+  tag: v0.6.2
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+# Set true when running more than one operator replica (requires RBAC for leases).
+leaderElect: false
+
+secret:
+  # When false (default), create the Secret before install:
+  #   kubectl create secret generic hcloud-operator-secret -n hcloud-operator-system --from-literal=token="$HCLOUD_TOKEN"
+  create: false
+  name: hcloud-operator-secret
+  key: token
+  # Only used when secret.create is true (dev/quickstart; do not commit real tokens).
+  token: ""
+
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+
+metricsPort: 8082
+healthPort: 8081
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  name: hcloud-operator
+
+rbac:
+  create: true

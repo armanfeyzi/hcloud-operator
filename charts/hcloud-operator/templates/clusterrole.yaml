@@ -1,0 +1,243 @@
+{{- if .Values.rbac.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: hcloud-operator-role
+  labels:
+    {{- include "hcloud-operator.labels" . | nindent 4 }}
+rules:
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudloadbalancers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudloadbalancers/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudloadbalancers/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudservers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudservers/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudservers/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudvolumes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudvolumes/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudvolumes/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudnetworks
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudnetworks/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudnetworks/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudfirewalls
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudfirewalls/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudfirewalls/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudplacementgroups
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudplacementgroups/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudplacementgroups/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudprimaryips
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudprimaryips/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudprimaryips/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudfloatingips
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudfloatingips/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudfloatingips/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudcertificates
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudcertificates/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - infra.hkc.io
+  resources:
+  - hcloudcertificates/status
+  verbs:
+  - get
+  - patch
+  - update
+{{- end }}

@@ -1,0 +1,26 @@
+# Sync waves 0–3: network → server → volume → load balancer.
+# Edit examples/argo/manifests/server.yaml (sshKeys, sizes) before syncing.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hcloud-gitops-demo
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: hcloud-operator
+  source:
+    repoURL: https://github.com/armanfeyzi/hcloud-operator.git
+    targetRevision: main
+    path: examples/argo/manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - RespectIgnoreDifferences=true

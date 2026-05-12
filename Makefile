@@ -121,6 +121,28 @@ undeploy: ## Tear down everything in config/default/ (includes CRDs — destruct
 	kubectl delete -k config/default/ --ignore-not-found
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Helm
+# ──────────────────────────────────────────────────────────────────────────────
+HELM_CHART ?= charts/hcloud-operator
+
+.PHONY: helm-sync-crds
+helm-sync-crds: ## Copy CRD bases into the Helm chart crds/ directory
+	cp config/crd/bases/*.yaml $(HELM_CHART)/crds/
+
+.PHONY: helm-lint
+helm-lint: helm-sync-crds ## Lint the Helm chart
+	helm lint $(HELM_CHART)
+
+.PHONY: helm-template
+helm-template: helm-sync-crds ## Render the Helm chart locally
+	helm template hcloud-operator $(HELM_CHART) --namespace hcloud-operator-system
+
+.PHONY: helm-package
+helm-package: helm-lint ## Package chart as dist/hcloud-operator-<version>.tgz
+	@mkdir -p dist
+	helm package $(HELM_CHART) -d dist/
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Tools
 # ──────────────────────────────────────────────────────────────────────────────
 $(LOCALBIN):

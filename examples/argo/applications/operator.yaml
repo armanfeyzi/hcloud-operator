@@ -1,0 +1,36 @@
+# Sync wave -1: install operator + CRDs before Hetzner infrastructure Applications.
+# Prerequisites: create hcloud-operator-secret (see examples/argo/README.md).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hcloud-operator
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: hcloud-operator
+  source:
+    repoURL: https://github.com/armanfeyzi/hcloud-operator.git
+    targetRevision: main
+    path: charts/hcloud-operator
+    helm:
+      releaseName: hcloud-operator
+      values: |
+        secret:
+          create: false
+          name: hcloud-operator-secret
+        image:
+          repository: ghcr.io/armanfeyzi/hcloud-operator
+          tag: v0.6.2
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: hcloud-operator-system
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

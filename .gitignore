@@ -34,5 +34,8 @@ go.work.sum
 # Operator binaries and downloaded tools
 bin/
 
+# Packaged Helm charts
+dist/
+
 # cursor
 .cursor/

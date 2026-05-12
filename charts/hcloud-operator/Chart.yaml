@@ -1,0 +1,18 @@
+apiVersion: v2
+name: hcloud-operator
+description: Hetzner Kubernetes Infrastructure Controller — ACK-style CRDs for Hetzner Cloud
+type: application
+version: 0.6.2
+appVersion: "0.6.2"
+kubeVersion: ">=1.25.0-0"
+home: https://github.com/armanfeyzi/hcloud-operator
+sources:
+  - https://github.com/armanfeyzi/hcloud-operator
+keywords:
+  - hetzner
+  - hcloud
+  - operator
+  - gitops
+maintainers:
+  - name: armanfeyzi
+    url: https://github.com/armanfeyzi

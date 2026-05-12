@@ -1,0 +1,18 @@
+# Optional production-shaped edge rules (wave 0). Include in kustomization.resources to enable.
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudFirewall
+metadata:
+  name: gitops-demo-fw
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  rules:
+    - direction: in
+      protocol: tcp
+      port: "22"
+      sourceIPs:
+        - 0.0.0.0/0
+        - ::/0
+  labels:
+    env: gitops-demo
+    managed-by: argocd

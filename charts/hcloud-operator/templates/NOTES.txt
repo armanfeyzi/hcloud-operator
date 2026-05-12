@@ -1,0 +1,15 @@
+Hetzner Kubernetes Infrastructure Controller (HKIC) installed in namespace {{ include "hcloud-operator.namespace" . }}.
+
+1. Ensure the Hetzner API token Secret exists (key must be "{{ .Values.secret.key }}"):
+   kubectl get secret {{ .Values.secret.name }} -n {{ include "hcloud-operator.namespace" . }}
+
+2. Wait for the operator pod:
+   kubectl wait --for=condition=Available deployment/hcloud-operator -n {{ include "hcloud-operator.namespace" . }} --timeout=120s
+
+3. Verify CRDs:
+   kubectl api-resources | grep infra.hkc.io
+
+4. Create infrastructure, for example:
+   kubectl apply -f config/samples/simple/hcloud-server/hcloud_server_simple_v1alpha1.yaml
+
+See https://github.com/armanfeyzi/hcloud-operator/blob/main/docs/crds.md

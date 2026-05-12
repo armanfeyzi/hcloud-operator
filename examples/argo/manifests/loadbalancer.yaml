@@ -1,0 +1,16 @@
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudLoadBalancer
+metadata:
+  name: gitops-demo-lb
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  loadBalancerType: lb11
+  location: fsn1
+  algorithm: round_robin
+  serverSelector:
+    matchLabels:
+      demo.hkc.io/lb: web
+  labels:
+    env: gitops-demo
+    managed-by: argocd

@@ -104,10 +104,10 @@ wave  3: HCloudLoadBalancer (depends on server labels / certificateRefs)
 
 ## Verification checklist (end of sprint)
 
-- [ ] `helm template charts/hcloud-operator` renders without error
+- [x] `helm template charts/hcloud-operator` renders without error (`make helm-template`)
 - [ ] `helm install` on kind/minikube (or dev cluster) → operator pod Ready
 - [ ] Argo CD sync: operator app Healthy, stack app Synced, `HCloudServer` reaches `status.state=running` (with valid token + SSH key name)
-- [ ] Docs: roadmap Phase 4 items #12/#13 checked or linked to merged PR
+- [x] Docs: roadmap Phase 4 items #12/#13 linked; chart and Argo paths in README
 
 ---
 

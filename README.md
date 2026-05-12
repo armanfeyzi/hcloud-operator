@@ -119,6 +119,36 @@ kubectl apply -f https://github.com/armanfeyzi/hcloud-operator/releases/latest/d
 
 If that URL returns 404, no release exists yet—build from a clone or run `make run` locally instead.
 
+**Option D — Helm chart** (operator + CRDs from a checkout):
+
+```bash
+kubectl create secret generic hcloud-operator-secret \
+  -n hcloud-operator-system \
+  --from-literal=token="$HCLOUD_TOKEN" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+helm install hcloud-operator ./charts/hcloud-operator \
+  --namespace hcloud-operator-system \
+  --create-namespace \
+  --set image.tag=v0.6.2
+```
+
+See [charts/hcloud-operator/README.md](charts/hcloud-operator/README.md). GitHub Releases may also attach `hcloud-operator-<version>.tgz` alongside `install.yaml`.
+
+### GitOps / Argo CD
+
+Wave-ordered **Application** manifests install the Helm chart (operator + CRDs) then a demo stack (network → server → volume → load balancer):
+
+```bash
+# After creating hcloud-operator-secret (see examples/argo/README.md)
+kubectl apply -f examples/argo/project.yaml
+kubectl apply -f examples/argo/applications/operator.yaml
+# Edit examples/argo/manifests/server.yaml (sshKeys), then:
+kubectl apply -f examples/argo/applications/infrastructure.yaml
+```
+
+Details: [examples/argo/README.md](examples/argo/README.md).
+
 **Troubleshooting — pod `CreateContainerConfigError` / `couldn't find key token`:** the Secret must use **`token`**, not `HCLOUD_TOKEN`. Fix with:
 `kubectl create secret generic hcloud-operator-secret -n hcloud-operator-system --from-literal=token="$HCLOUD_TOKEN" --dry-run=client -o yaml | kubectl apply -f -`
 
@@ -210,6 +240,8 @@ kubectl get hcs,hcv,hclb
 - [k3s kubeconfig access pattern](docs/k3s-on-hcloud.md#secure-kubeconfig-handling-recommended)
 - [Hetzner Cloud API coverage matrix](docs/hcloud-api-coverage.md)
 - [Roadmap](docs/roadmap.md)
+- [Helm chart](charts/hcloud-operator/README.md)
+- [Argo CD examples](examples/argo/README.md)
 - [Contributing](CONTRIBUTING.md)
 
 ## License

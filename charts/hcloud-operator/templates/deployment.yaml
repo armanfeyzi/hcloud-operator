@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hcloud-operator
+  namespace: {{ include "hcloud-operator.namespace" . }}
+  labels:
+    {{- include "hcloud-operator.labels" . | nindent 4 }}
+    app: hcloud-operator
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: hcloud-operator
+      {{- include "hcloud-operator.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app: hcloud-operator
+        {{- include "hcloud-operator.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      securityContext:
+        runAsNonRoot: true
+      terminationGracePeriodSeconds: 10
+      containers:
+      - name: manager
+        image: {{ include "hcloud-operator.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        args:
+        - --leader-elect={{ .Values.leaderElect }}
+        env:
+        - name: HCLOUD_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secret.name }}
+              key: {{ .Values.secret.key }}
+        ports:
+        - name: metrics
+          containerPort: {{ .Values.metricsPort }}
+          protocol: TCP
+        - name: health
+          containerPort: {{ .Values.healthPort }}
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: health
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: health
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL

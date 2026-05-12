@@ -71,8 +71,8 @@ Tracked on GitHub milestone **[HKIC: Hetzner Cloud CRD coverage](https://github.
 - [x] `HCloudFirewall` CRD and reconciler
 
 ## Phase 4: GitOps & platform engineering — **Current focus**
-- [ ] **Helm chart** (image, token secret, optional feature flags) — primary install path alongside kustomize (#12) — **next sprint**
-- [ ] Argo CD Application examples / patterns (#13) — **next sprint**
+- [x] **Helm chart** — [charts/hcloud-operator/](../charts/hcloud-operator/README.md), `make helm-lint` (#12)
+- [x] **Argo CD examples** — [examples/argo/](../examples/argo/README.md) (#13)
 - [ ] Optional **CI E2E** against real Hetzner when `HCLOUD_TOKEN` is present in repo secrets (#14)
 - [ ] Multi-cluster / multi-token patterns (documentation first) (#15)
 - [ ] Higher-level abstractions with [kro](https://github.com/kubernetes-sigs/kro) or Crossplane Compositions (recipes + docs) (#16)

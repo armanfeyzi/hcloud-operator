@@ -61,8 +61,26 @@ jobs:
           grep -q "kind: Deployment" install.yaml
           grep -q "hcloud-operator-system" install.yaml
 
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Package Helm chart
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          VERSION="${REF_NAME#v}"
+          sed -i "s/^version:.*/version: ${VERSION}/" charts/hcloud-operator/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"${VERSION}\"/" charts/hcloud-operator/Chart.yaml
+          sed -i "s|tag:.*|tag: ${REF_NAME}|" charts/hcloud-operator/values.yaml
+          helm lint charts/hcloud-operator
+          mkdir -p dist
+          helm package charts/hcloud-operator -d dist/
+          ls -la dist/
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: install.yaml
+          files: |
+            install.yaml
+            dist/hcloud-operator-*.tgz
           generate_release_notes: true

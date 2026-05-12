@@ -1,0 +1,13 @@
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudNetwork
+metadata:
+  name: gitops-demo-net
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  ipRange: 10.90.0.0/16
+  networkZones:
+    - eu-central
+  labels:
+    env: gitops-demo
+    managed-by: argocd

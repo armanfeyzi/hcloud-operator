@@ -1,0 +1,22 @@
+# spec.sshKeys: use the exact SSH key name from the Hetzner Cloud console (Security → SSH keys).
+# The key must exist in your Hetzner project before sync; HKIC does not upload public keys.
+apiVersion: infra.hkc.io/v1alpha1
+kind: HCloudServer
+metadata:
+  name: gitops-demo-web
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  labels:
+    app.kubernetes.io/name: gitops-demo-web
+    demo.hkc.io/lb: web
+spec:
+  serverType: cx23
+  image: ubuntu-22.04
+  location: fsn1
+  # sshKeys:
+  #   - REPLACE_WITH_HETZNER_SSH_KEY_NAME
+  networkRef:
+    name: gitops-demo-net
+  labels:
+    env: gitops-demo
+    managed-by: argocd
