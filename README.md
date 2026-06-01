@@ -98,16 +98,16 @@ The Deployment expects the key **`token`** (it maps to the `HCLOUD_TOKEN` enviro
 **Option A — released install (recommended, matches CI):** every Git tag build publishes `install.yaml` with the image set to `ghcr.io/<repo>:<tag>`.
 
 ```bash
-export VERSION=v0.8.2   # or use latest: see GitHub Releases
+export VERSION=v0.8.3   # or use latest: see GitHub Releases
 kubectl apply -f "https://github.com/armanfeyzi/hcloud-operator/releases/download/${VERSION}/install.yaml"
-# or: make deploy-release VERSION=v0.8.2
+# or: make deploy-release VERSION=v0.8.3
 ```
 
 **Option B — from a git clone** (local dev / custom `IMG`):
 
 ```bash
 # Same secret as above, then either local kustomize (localhost image) or a published image:
-make deploy-img IMG=ghcr.io/armanfeyzi/hcloud-operator:v0.8.2
+make deploy-img IMG=ghcr.io/armanfeyzi/hcloud-operator:v0.8.3
 # or: kubectl apply -k config/default/   # after docker build + kind load, or with IMG substitution
 ```
 
@@ -130,7 +130,7 @@ kubectl create secret generic hcloud-operator-secret \
 helm install hcloud-operator ./charts/hcloud-operator \
   --namespace hcloud-operator-system \
   --create-namespace \
-  --set image.tag=v0.8.2
+  --set image.tag=v0.8.3
 ```
 
 See [charts/hcloud-operator/README.md](charts/hcloud-operator/README.md). GitHub Releases may also attach `hcloud-operator-<version>.tgz` alongside `install.yaml`.
