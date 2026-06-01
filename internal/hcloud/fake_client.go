@@ -803,6 +803,9 @@ func (f *FakeClient) CreatePrimaryIP(ctx context.Context, opts PrimaryIPCreateOp
 	if f.CreateErr != nil {
 		return nil, f.CreateErr
 	}
+	if opts.Datacenter != "" && opts.AssigneeID != 0 {
+		return nil, fmt.Errorf("fake: cannot set datacenter and assignee_id on primary IP create")
+	}
 	for _, pip := range f.primaryIPs {
 		if pip.Name == opts.Name {
 			return nil, fmt.Errorf("fake: primary IP with name %q already exists", opts.Name)

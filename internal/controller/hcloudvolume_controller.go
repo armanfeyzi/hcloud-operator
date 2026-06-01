@@ -181,7 +181,7 @@ func (r *HCloudVolumeReconciler) reconcileHCloudVolume(ctx context.Context, obj 
 			ServerID:  targetServerID,
 			Location:  obj.Spec.Location,
 			Format:    obj.Spec.Format,
-			Automount: true,
+			Automount: targetServerID != 0, // Hetzner requires a server when automount is true
 			Labels:    obj.Spec.Labels,
 		}
 

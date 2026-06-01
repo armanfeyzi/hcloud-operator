@@ -1158,7 +1158,8 @@ func (c *Client) CreatePrimaryIP(ctx context.Context, opts PrimaryIPCreateOpts) 
 		AutoDelete:   opts.AutoDelete,
 		AssigneeType: primaryIPAssigneeType(opts.AssigneeType),
 	}
-	if opts.AssigneeID != 0 {
+	// Assignee at create is optional; do not set datacenter and assignee_id together (API error).
+	if opts.AssigneeID != 0 && opts.Datacenter == "" {
 		assigneeID := opts.AssigneeID
 		createOpts.AssigneeID = &assigneeID
 	}

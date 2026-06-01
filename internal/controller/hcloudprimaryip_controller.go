@@ -168,14 +168,14 @@ func (r *HCloudPrimaryIPReconciler) reconcileHCloudPrimaryIP(ctx context.Context
 
 	if existing == nil {
 		log.Info("Creating new Hetzner primary IP", "name", obj.Name, "type", obj.Spec.Type, "datacenter", obj.Spec.Datacenter)
+		// Create without assignee: Hetzner rejects create when both datacenter and assignee_id are set.
+		// Assignment is handled below by ensurePrimaryIPAssignment.
 		created, err := r.HCloudClient.CreatePrimaryIP(ctx, hcloudclient.PrimaryIPCreateOpts{
-			Name:         obj.Name,
-			Type:         obj.Spec.Type,
-			Datacenter:   obj.Spec.Datacenter,
-			Labels:       obj.Spec.Labels,
-			AutoDelete:   obj.Spec.AutoDelete,
-			AssigneeID:   targetServerID,
-			AssigneeType: "server",
+			Name:       obj.Name,
+			Type:       obj.Spec.Type,
+			Datacenter: obj.Spec.Datacenter,
+			Labels:     obj.Spec.Labels,
+			AutoDelete: obj.Spec.AutoDelete,
 		})
 		if err != nil {
 			return fmt.Errorf("create Hetzner primary IP: %w", err)
