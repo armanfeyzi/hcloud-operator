@@ -23,6 +23,7 @@ Each sample has its own subdirectory for easier discovery and future expansion.
 
 - Server:
   - `kubectl apply -f config/samples/simple/hcloud-server/hcloud_server_simple_v1alpha1.yaml`
+  - Same file: `config/samples/simple/hcloud-server/server.yaml` (short alias for GitOps / `kubectl apply -f` URLs)
 - Volume:
   - `kubectl apply -f config/samples/simple/hcloud-volume/hcloud_volume_simple_v1alpha1.yaml`
 - Network:

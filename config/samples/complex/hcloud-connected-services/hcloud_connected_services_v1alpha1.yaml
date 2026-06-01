@@ -44,7 +44,7 @@ metadata:
   labels:
     demo.hkc.io/lb: app
 spec:
-  serverType: cx22
+  serverType: cpx22
   image: ubuntu-22.04
   location: fsn1
   networkRef:

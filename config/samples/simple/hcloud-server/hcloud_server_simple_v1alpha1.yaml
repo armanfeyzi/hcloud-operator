@@ -2,13 +2,14 @@
 # Minimal server example (single resource).
 # Apply with:
 #   kubectl apply -f config/samples/simple/hcloud-server/hcloud_server_simple_v1alpha1.yaml
+#   kubectl apply -f config/samples/simple/hcloud-server/server.yaml   # alias
 #
 apiVersion: infra.hkc.io/v1alpha1
 kind: HCloudServer
 metadata:
   name: simple-server
 spec:
-  serverType: cx22
+  serverType: cpx22
   image: ubuntu-22.04
   location: fsn1
   labels:
