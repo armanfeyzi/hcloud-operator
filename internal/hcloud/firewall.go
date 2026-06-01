@@ -56,6 +56,7 @@ func (c *Client) CreateFirewall(ctx context.Context, opts FirewallCreateOpts) (*
 }
 
 // DeleteFirewall deletes a firewall by ID (idempotent).
+// Detaches all applied resources first so delete succeeds when dependents are removed out of order (e.g. Argo CD reverse sync waves).
 func (c *Client) DeleteFirewall(ctx context.Context, id int64) error {
 	f, _, err := c.hc.Firewall.GetByID(ctx, id)
 	if err != nil {
@@ -63,6 +64,12 @@ func (c *Client) DeleteFirewall(ctx context.Context, id int64) error {
 	}
 	if f == nil {
 		return nil
+	}
+	info := firewallInfoFromSDK(f)
+	if len(info.AppliedTo) > 0 {
+		if err := c.RemoveFirewallResources(ctx, id, info.AppliedTo); err != nil && !IsFirewallAlreadyRemoved(err) {
+			return fmt.Errorf("hcloud: detach firewall %d before delete: %w", id, err)
+		}
 	}
 	if _, err := c.hc.Firewall.Delete(ctx, f); err != nil {
 		return fmt.Errorf("hcloud: DeleteFirewall(%d): %w", id, err)

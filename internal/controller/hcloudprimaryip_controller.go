@@ -307,10 +307,8 @@ func (r *HCloudPrimaryIPReconciler) deleteHCloudPrimaryIP(ctx context.Context, o
 	if obj.Status.PrimaryIPID == 0 {
 		return nil
 	}
-	if obj.Status.AppliedAssigneeID != 0 {
-		if err := r.HCloudClient.UnassignPrimaryIP(ctx, obj.Status.PrimaryIPID); err != nil {
-			return fmt.Errorf("unassign primary IP before delete: %w", err)
-		}
+	if err := r.HCloudClient.UnassignPrimaryIP(ctx, obj.Status.PrimaryIPID); err != nil {
+		return fmt.Errorf("unassign primary IP before delete: %w", err)
 	}
 	return r.HCloudClient.DeletePrimaryIP(ctx, obj.Status.PrimaryIPID)
 }

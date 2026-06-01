@@ -671,6 +671,11 @@ func (f *FakeClient) DeleteFirewall(ctx context.Context, id int64) error {
 	if f.DeleteErr != nil {
 		return f.DeleteErr
 	}
+	fw, ok := f.firewalls[id]
+	if !ok {
+		return nil
+	}
+	fw.AppliedTo = nil
 	delete(f.firewalls, id)
 	return nil
 }
@@ -880,6 +885,9 @@ func (f *FakeClient) UnassignPrimaryIP(ctx context.Context, id int64) error {
 	if !ok {
 		return fmt.Errorf("fake: primary IP %d not found", id)
 	}
+	if pip.AssigneeID == 0 {
+		return nil
+	}
 	pip.AssigneeID = 0
 	return nil
 }
@@ -1000,6 +1008,9 @@ func (f *FakeClient) UnassignFloatingIP(ctx context.Context, id int64) error {
 	fip, ok := f.floatingIPs[id]
 	if !ok {
 		return fmt.Errorf("fake: floating IP %d not found", id)
+	}
+	if fip.ServerID == 0 {
+		return nil
 	}
 	fip.ServerID = 0
 	return nil

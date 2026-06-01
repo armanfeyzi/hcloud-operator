@@ -88,6 +88,8 @@ kubectl delete -f examples/argo/applications/operator.yaml
 
 Deleting CRs triggers Hetzner cleanup via finalizers when the operator is still running.
 
+Argo CD deletes resources in **reverse sync-wave order** (higher waves first). That means wave-2 objects (volume, firewall, floating IP, primary IP) are removed while the server (wave 1) may still exist. The operator detaches firewalls and unassigns IPs from live Hetzner state before delete so teardown does not require the server CR to disappear first.
+
 ## Related
 
 - Helm chart: [charts/hcloud-operator/README.md](../../charts/hcloud-operator/README.md)

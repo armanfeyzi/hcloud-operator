@@ -305,10 +305,8 @@ func (r *HCloudFloatingIPReconciler) deleteHCloudFloatingIP(ctx context.Context,
 	if obj.Status.FloatingIPID == 0 {
 		return nil
 	}
-	if obj.Status.AppliedServerID != 0 {
-		if err := r.HCloudClient.UnassignFloatingIP(ctx, obj.Status.FloatingIPID); err != nil {
-			return fmt.Errorf("unassign floating IP before delete: %w", err)
-		}
+	if err := r.HCloudClient.UnassignFloatingIP(ctx, obj.Status.FloatingIPID); err != nil {
+		return fmt.Errorf("unassign floating IP before delete: %w", err)
 	}
 	return r.HCloudClient.DeleteFloatingIP(ctx, obj.Status.FloatingIPID)
 }

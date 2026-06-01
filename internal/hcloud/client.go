@@ -1221,8 +1221,22 @@ func (c *Client) AssignPrimaryIP(ctx context.Context, id int64, assigneeID int64
 }
 
 // UnassignPrimaryIP removes the current assignee from a primary IP.
+// No-op when the IP has no assignee (idempotent).
 func (c *Client) UnassignPrimaryIP(ctx context.Context, id int64) error {
+	p, _, err := c.hc.PrimaryIP.GetByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("hcloud: GetPrimaryIP(%d): %w", id, err)
+	}
+	if p == nil {
+		return fmt.Errorf("hcloud: primary IP %d not found", id)
+	}
+	if p.AssigneeID == 0 {
+		return nil
+	}
 	if _, _, err := c.hc.PrimaryIP.Unassign(ctx, id); err != nil {
+		if IsPrimaryIPNotAssigned(err) {
+			return nil
+		}
 		return fmt.Errorf("hcloud: UnassignPrimaryIP(%d): %w", id, err)
 	}
 	return nil
@@ -1398,6 +1412,7 @@ func (c *Client) AssignFloatingIP(ctx context.Context, id int64, serverID int64)
 }
 
 // UnassignFloatingIP removes the current server assignment from a floating IP.
+// No-op when the IP is already unassigned (idempotent).
 func (c *Client) UnassignFloatingIP(ctx context.Context, id int64) error {
 	f, _, err := c.hc.FloatingIP.GetByID(ctx, id)
 	if err != nil {
@@ -1406,7 +1421,13 @@ func (c *Client) UnassignFloatingIP(ctx context.Context, id int64) error {
 	if f == nil {
 		return fmt.Errorf("hcloud: floating IP %d not found", id)
 	}
+	if f.Server == nil {
+		return nil
+	}
 	if _, _, err := c.hc.FloatingIP.Unassign(ctx, f); err != nil {
+		if IsFloatingIPNotAssigned(err) {
+			return nil
+		}
 		return fmt.Errorf("hcloud: UnassignFloatingIP(%d): %w", id, err)
 	}
 	return nil
