@@ -47,6 +47,23 @@ Run the unit and envtest-based tests:
 make test
 ```
 
+`make test` downloads the Kubernetes control-plane binaries (`etcd`, `kube-apiserver`) that envtest needs into `bin/k8s/` via `setup-envtest`, then runs `go test ./...` with `KUBEBUILDER_ASSETS` pointing at them. The control-plane version is pinned by `ENVTEST_K8S_VERSION` in the `Makefile` (default `1.31.0`); override it if needed:
+
+```bash
+make test ENVTEST_K8S_VERSION=1.30.0
+```
+
+To only fetch the assets without running the suite (e.g. to run `go test` yourself), use:
+
+```bash
+make setup-envtest
+# then pass the printed path explicitly, using an ABSOLUTE bin dir:
+export KUBEBUILDER_ASSETS="$(./bin/setup-envtest use 1.31.0 --bin-dir "$(pwd)/bin" -p path)"
+go test ./...
+```
+
+> Running `go test ./...` directly **without** `KUBEBUILDER_ASSETS` set fails with `unable to start control plane`. The asset path must be absolute, since each package's tests run from its own directory.
+
 ## Generating Code
 
 If you change the API types in `api/v1alpha1/hcloudserver_types.go`, you must regenerate the deepcopy methods and the CRD manifests:

@@ -19,6 +19,11 @@ GOARCH      ?= $(shell go env GOARCH)
 # Tool versions
 CONTROLLER_TOOLS_VERSION ?= latest
 ENVTEST_VERSION          ?= release-0.19
+# Kubernetes control-plane version for envtest (etcd + kube-apiserver binaries).
+# Must be defined so `setup-envtest use` downloads a deterministic version on a
+# clean checkout; without it the test harness resolves to an empty asset path
+# and envtest fails with "unable to start control plane".
+ENVTEST_K8S_VERSION      ?= 1.31.0
 
 # Tool binary locations
 LOCALBIN    ?= $(shell pwd)/bin
@@ -70,14 +75,19 @@ run: manifests generate fmt vet ## Run the operator locally (requires HCLOUD_TOK
 # ──────────────────────────────────────────────────────────────────────────────
 # Tests
 # ──────────────────────────────────────────────────────────────────────────────
+.PHONY: setup-envtest
+setup-envtest: envtest ## Download envtest control-plane binaries (etcd, kube-apiserver) for ENVTEST_K8S_VERSION
+	@$(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path >/dev/null
+	@echo "envtest assets: $$($(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)"
+
 .PHONY: test
-test: manifests generate fmt vet envtest ## Run unit/integration tests
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path 2>/dev/null || echo $(LOCALBIN)/k8s/$(shell ls $(LOCALBIN)/k8s 2>/dev/null | head -1))" \
+test: manifests generate fmt vet setup-envtest ## Run unit/integration tests
+	KUBEBUILDER_ASSETS="$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
 		go test ./... -coverprofile cover.out -v
 
 .PHONY: test-e2e
-test-e2e: manifests generate fmt vet envtest ## Run end-to-end tests (requires real HCLOUD_TOKEN and cluster)
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
+test-e2e: manifests generate fmt vet setup-envtest ## Run end-to-end tests (requires real HCLOUD_TOKEN and cluster)
+	KUBEBUILDER_ASSETS="$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
 		go test ./test/e2e/... -v -timeout 30m
 
 # ──────────────────────────────────────────────────────────────────────────────
