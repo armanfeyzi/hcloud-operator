@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -13,11 +12,11 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	infrav1alpha1 "github.com/armanfeyzi/hcloud-operator/api/v1alpha1"
 	hcloudclient "github.com/armanfeyzi/hcloud-operator/internal/hcloud"
+	basereconcile "github.com/armanfeyzi/hcloud-operator/internal/reconcile"
 )
 
 const (
@@ -50,57 +49,38 @@ type HCloudServerReconciler struct {
 	HCloudClient hcloudclient.Interface
 }
 
-// SetupWithManager registers the reconciler with the controller manager.
+// SetupWithManager registers the reconciler with the controller manager, wrapping
+// the domain logic in the shared generic base reconciler (fetch, finalizers,
+// deletion, Synced condition, events, metrics, status persistence).
 func (r *HCloudServerReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	base := &basereconcile.BaseReconciler[*infrav1alpha1.HCloudServer]{
+		Client:   r.Client,
+		Recorder: mgr.GetEventRecorderFor("hcloud-server"),
+		Resource: r,
+	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrav1alpha1.HCloudServer{}).
-		Complete(r)
+		Complete(base)
 }
 
-// Reconcile is the core reconciliation loop for HCloudServer resources.
-// It is called every time a HCloudServer is created, updated, or deleted.
-func (r *HCloudServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := log.FromContext(ctx)
+// NewObject returns an empty HCloudServer for the generic base reconciler.
+func (r *HCloudServerReconciler) NewObject() *infrav1alpha1.HCloudServer {
+	return &infrav1alpha1.HCloudServer{}
+}
 
-	// ── 1. Fetch the HCloudServer resource ──────────────────────────────────
-	server := &infrav1alpha1.HCloudServer{}
-	if err := r.Get(ctx, req.NamespacedName, server); err != nil {
-		if apierrors.IsNotFound(err) {
-			// Object deleted before reconcile ran — nothing to do.
-			return ctrl.Result{}, nil
-		}
-		return ctrl.Result{}, fmt.Errorf("get HCloudServer: %w", err)
-	}
+// FinalizerName returns the finalizer managed for HCloudServer resources.
+func (r *HCloudServerReconciler) FinalizerName() string { return hcloudServerFinalizer }
 
-	// ── 2. Handle deletion ───────────────────────────────────────────────────
-	if !server.DeletionTimestamp.IsZero() {
-		if controllerutil.ContainsFinalizer(server, hcloudServerFinalizer) {
-			log.Info("Handling deletion", "serverID", server.Status.ServerID)
-			if err := r.deleteHCloudServer(ctx, server); err != nil {
-				return ctrl.Result{}, fmt.Errorf("delete HCloud server: %w", err)
-			}
-			controllerutil.RemoveFinalizer(server, hcloudServerFinalizer)
-			if err := r.Update(ctx, server); err != nil {
-				return ctrl.Result{}, fmt.Errorf("remove finalizer: %w", err)
-			}
-		}
-		return ctrl.Result{}, nil
-	}
+// Kind returns the stable label used for Kubernetes Events and Prometheus metrics.
+func (r *HCloudServerReconciler) Kind() string { return "HCloudServer" }
 
-	// ── 3. Ensure finalizer is present ───────────────────────────────────────
-	if !controllerutil.ContainsFinalizer(server, hcloudServerFinalizer) {
-		controllerutil.AddFinalizer(server, hcloudServerFinalizer)
-		if err := r.Update(ctx, server); err != nil {
-			return ctrl.Result{}, fmt.Errorf("add finalizer: %w", err)
-		}
-		return ctrl.Result{Requeue: true}, nil
-	}
-
-	// ── 4. Reconcile Hetzner server ──────────────────────────────────────────
+// Reconcile converges the Hetzner Cloud server for an existing, non-deleted
+// HCloudServer. The base reconciler owns the surrounding loop (fetch, finalizer,
+// deletion, Synced, events, metrics, status writes); on error here the base forces
+// Synced=False and Ready=False, so this method only returns the error.
+func (r *HCloudServerReconciler) Reconcile(ctx context.Context, server *infrav1alpha1.HCloudServer) (ctrl.Result, error) {
 	requeueAfter, err := r.reconcileHCloudServer(ctx, server)
 	if err != nil {
-		r.setCondition(server, conditionTypeReady, metav1.ConditionFalse, "ReconcileError", err.Error())
-		_ = r.updateServerStatusWithRetry(ctx, server)
 		return ctrl.Result{}, err
 	}
 
@@ -109,6 +89,11 @@ func (r *HCloudServerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		delay = requeueAfter
 	}
 	return ctrl.Result{RequeueAfter: delay}, nil
+}
+
+// Delete removes the Hetzner Cloud server before the finalizer is dropped.
+func (r *HCloudServerReconciler) Delete(ctx context.Context, server *infrav1alpha1.HCloudServer) error {
+	return r.deleteHCloudServer(ctx, server)
 }
 
 // reconcileHCloudServer ensures the Hetzner Cloud server matches the desired spec.

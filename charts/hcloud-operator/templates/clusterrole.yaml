@@ -240,4 +240,25 @@ rules:
   - get
   - patch
   - update
+# Kubernetes Events emitted by controllers (Created, Deleted, ReconcileError, ...).
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+# Leader election leases (leader-elect defaults to true so >1 replica is safe).
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 {{- end }}

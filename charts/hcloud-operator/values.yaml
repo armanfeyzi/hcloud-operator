@@ -11,8 +11,10 @@ image:
 
 replicaCount: 1
 
-# Set true when running more than one operator replica (requires RBAC for leases).
-leaderElect: false
+# Leader election. Enabled by default so running more than one replica is safe;
+# the chart ClusterRole grants the required coordination.k8s.io/leases RBAC.
+# Set false only for single-replica or local runs where the lease is unnecessary.
+leaderElect: true
 
 secret:
   # When false (default), create the Secret before install:

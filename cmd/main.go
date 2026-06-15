@@ -18,6 +18,7 @@ import (
 	infrav1alpha1 "github.com/armanfeyzi/hcloud-operator/api/v1alpha1"
 	"github.com/armanfeyzi/hcloud-operator/internal/controller"
 	hcloudclient "github.com/armanfeyzi/hcloud-operator/internal/hcloud"
+	"github.com/armanfeyzi/hcloud-operator/internal/metrics"
 )
 
 var (
@@ -39,12 +40,18 @@ func main() {
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8082", "The address the metrics endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the health probe endpoint binds to.")
-	flag.BoolVar(&enableLeaderElection, "leader-elect", false, "Enable leader election for high availability.")
+	flag.BoolVar(&enableLeaderElection, "leader-elect", true,
+		"Enable leader election for high availability. Enabled by default so running >1 replica is safe; "+
+			"pass --leader-elect=false for single-replica or local runs.")
 	opts := zap.Options{Development: true}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+
+	// Register custom Prometheus metrics on the controller-runtime registry so
+	// they are exposed on the manager's metrics endpoint (metricsAddr).
+	metrics.Register()
 
 	// ── Hetzner Cloud token ────────────────────────────────────────────────
 	hcloudToken := os.Getenv("HCLOUD_TOKEN")
