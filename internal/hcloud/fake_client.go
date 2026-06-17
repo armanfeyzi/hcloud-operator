@@ -329,6 +329,13 @@ func (f *FakeClient) DeleteVolume(ctx context.Context, id int64) error {
 	if f.DeleteErr != nil {
 		return f.DeleteErr
 	}
+	v, ok := f.volumes[id]
+	if !ok {
+		return nil
+	}
+	if v.ServerID > 0 {
+		return fmt.Errorf("fake: volume %d is attached to server %d", id, v.ServerID)
+	}
 	delete(f.volumes, id)
 	return nil
 }

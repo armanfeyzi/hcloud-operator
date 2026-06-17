@@ -134,6 +134,71 @@ var _ = Describe("HCloudVolumeReconciler", func() {
 		})
 	})
 
+	Context("Volume deletion", func() {
+		It("detaches and deletes a volume while the referenced server is still running", func() {
+			serverName := fmt.Sprintf("test-server-vol-delete-%d", time.Now().UnixNano())
+
+			srv := &infrav1alpha1.HCloudServer{
+				ObjectMeta: metav1.ObjectMeta{Name: serverName, Namespace: "default"},
+				Spec:       infrav1alpha1.HCloudServerSpec{ServerType: "cx21", Image: "ubuntu-22.04", Location: "fsn1"},
+			}
+			Expect(k8sClient.Create(ctx, srv)).To(Succeed())
+
+			Eventually(func() int64 {
+				s := &infrav1alpha1.HCloudServer{}
+				k8sClient.Get(ctx, types.NamespacedName{Name: serverName, Namespace: "default"}, s)
+				return s.Status.ServerID
+			}, waitTimeout, pollInterval).Should(BeNumerically(">", 0))
+
+			vol := newVolume(volName, 20, &serverName)
+			Expect(k8sClient.Create(ctx, vol)).To(Succeed())
+
+			var volumeID int64
+			Eventually(func() int64 {
+				v, _ := fetchVolume(volName)()
+				if v == nil {
+					return 0
+				}
+				volumeID = v.Status.VolumeID
+				return v.Status.AttachedServerID
+			}, waitTimeout, pollInterval).Should(BeNumerically(">", 0))
+
+			Expect(fakeHCloud.LenVolumes()).To(Equal(1))
+
+			obj, err := fetchVolume(volName)()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(k8sClient.Delete(ctx, obj)).To(Succeed())
+
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: volName, Namespace: "default"}, &infrav1alpha1.HCloudVolume{})
+				return err != nil
+			}, waitTimeout, pollInterval).Should(BeTrue(), "volume CR should be removed")
+
+			Expect(fakeHCloud.LenVolumes()).To(Equal(0))
+
+			Eventually(func() int64 {
+				info, _ := fakeHCloud.GetVolume(ctx, volumeID)
+				if info == nil {
+					return 0
+				}
+				return info.ServerID
+			}, waitTimeout, pollInterval).Should(BeZero())
+
+			Eventually(func() bool {
+				s := &infrav1alpha1.HCloudServer{}
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: serverName, Namespace: "default"}, s)
+				return err == nil && s.Status.ServerID > 0
+			}, waitTimeout, pollInterval).Should(BeTrue(), "referenced server should still exist")
+
+			DeferCleanup(func() {
+				serverObj := &infrav1alpha1.HCloudServer{}
+				if err := k8sClient.Get(ctx, types.NamespacedName{Name: serverName, Namespace: "default"}, serverObj); err == nil {
+					_ = k8sClient.Delete(ctx, serverObj)
+				}
+			})
+		})
+	})
+
 	Context("Volume resize", func() {
 		It("increases volume size when spec.size is updated", func() {
 			vol := newVolume(volName, 20, nil)
