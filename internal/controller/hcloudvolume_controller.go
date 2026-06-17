@@ -91,6 +91,9 @@ func (r *HCloudVolumeReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		if controllerutil.ContainsFinalizer(volume, hcloudVolumeFinalizer) {
 			log.Info("Handling deletion", "volumeID", volume.Status.VolumeID)
 			if volume.Status.VolumeID != 0 {
+				if err := r.detachVolumeIfAttached(ctx, volume); err != nil {
+					return ctrl.Result{}, err
+				}
 				if err := r.HCloudClient.DeleteVolume(ctx, volume.Status.VolumeID); err != nil {
 					return ctrl.Result{}, fmt.Errorf("delete volume: %w", err)
 				}
@@ -149,6 +152,29 @@ func (r *HCloudVolumeReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	return ctrl.Result{RequeueAfter: requeueDelay}, nil
+}
+
+func (r *HCloudVolumeReconciler) detachVolumeIfAttached(ctx context.Context, volume *infrav1alpha1.HCloudVolume) error {
+	log := log.FromContext(ctx)
+
+	attachedServerID := volume.Status.AttachedServerID
+	existing, err := r.HCloudClient.GetVolume(ctx, volume.Status.VolumeID)
+	if err != nil {
+		return fmt.Errorf("fetch volume for deletion: %w", err)
+	}
+	if existing != nil && existing.ServerID != 0 {
+		attachedServerID = existing.ServerID
+	}
+
+	if attachedServerID == 0 {
+		return nil
+	}
+
+	log.Info("Detaching volume before delete", "volumeID", volume.Status.VolumeID, "serverID", attachedServerID)
+	if err := r.HCloudClient.DetachVolume(ctx, volume.Status.VolumeID); err != nil {
+		return fmt.Errorf("detach volume before delete: %w", err)
+	}
+	return nil
 }
 
 func (r *HCloudVolumeReconciler) reconcileHCloudVolume(ctx context.Context, obj *infrav1alpha1.HCloudVolume, targetServerID int64) error {
