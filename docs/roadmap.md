@@ -20,7 +20,7 @@ Tracked on GitHub milestone **[HKIC: Operator & GitOps platform](https://github.
 | **High (now)** | Helm chart — operator image, token secret, values for install/upgrade | #12 |
 | **High (now)** | Argo CD Application(s) — sync waves for a full HKIC stack | #13 |
 | Medium (in progress) | Observability — Events, Prometheus metrics, richer conditions; shared base reconciler (**all controllers migrated**) | #11 |
-| Medium | kro `HetznerWebStack` composition (RGD + docs + CI render test) | #16 |
+| Out of scope (repo) | kro / Crossplane abstractions — users compose HKIC CRDs in their own tooling ([#16](https://github.com/armanfeyzi/hcloud-operator/issues/16) discussion only) |
 | Lower | Multi-cluster / multi-token docs | #15 |
 | Lower | Optional CI E2E against real Hetzner | #14 |
 | Deferred (M1) | `HCloudSSHKey` CRD — reference-by-name on Server is enough for most teams | #8 |
@@ -75,7 +75,7 @@ Tracked on GitHub milestone **[HKIC: Hetzner Cloud CRD coverage](https://github.
 - [x] **Argo CD examples** — [examples/argo/](../examples/argo/README.md) (#13)
 - [ ] Optional **CI E2E** against real Hetzner when `HCLOUD_TOKEN` is present in repo secrets (#14)
 - [ ] Multi-cluster / multi-token patterns (documentation first) (#15)
-- [ ] Higher-level abstractions with [kro](https://github.com/kubernetes-sigs/kro) — `HetznerWebStack` RGD under `composition/kro/` (#16, [docs/composition-kro.md](composition-kro.md))
+- [ ] Higher-level abstractions ([kro](https://github.com/kubernetes-sigs/kro), Crossplane, …) — **not shipped in this repo**; use `config/samples/complex/*` as raw-CRD composition baselines (#16)
 
 ## Optional: k3s-on-Hetzner composition recipes
 

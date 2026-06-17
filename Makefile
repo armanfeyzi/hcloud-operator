@@ -26,9 +26,6 @@ ENVTEST_VERSION          ?= release-0.19
 ENVTEST_K8S_VERSION      ?= 1.31.0
 
 # kro (composition layer) — pinned for RGD API compatibility
-KRO_VERSION              ?= v0.9.2
-KRO_INSTALL_URL          ?= https://github.com/kubernetes-sigs/kro/releases/download/$(KRO_VERSION)/kro-core-install-manifests.yaml
-
 # Tool binary locations
 LOCALBIN    ?= $(shell pwd)/bin
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
@@ -155,17 +152,6 @@ helm-template: helm-sync-crds ## Render the Helm chart locally
 helm-package: helm-lint ## Package chart as dist/hcloud-operator-<version>.tgz
 	@mkdir -p dist
 	helm package $(HELM_CHART) -d dist/
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Composition (kro)
-# ──────────────────────────────────────────────────────────────────────────────
-.PHONY: kro-install
-kro-install: ## Install pinned kro controller into the current kube context
-	kubectl apply -f "$(KRO_INSTALL_URL)"
-
-.PHONY: composition-assert
-composition-assert: ## Assert HetznerWebStack child CRs (STACK=demo, NS=default)
-	bash composition/kro/test/assert.sh "$(or $(STACK),demo)" "$(or $(NS),default)"
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Tools

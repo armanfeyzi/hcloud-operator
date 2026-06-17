@@ -30,11 +30,7 @@ Related ideas (not the core product definition):
 
 The goal is not to replace every multi-cloud tool, but to give teams that already live in **Kubernetes + GitOps** a first-class way to own **Hetzner infrastructure** the same way they own workloads.
 
-### Platform Engineering & KRO Compatibility
-
-Because HKIC uses standard Kubernetes Custom Resources (CRDs), strict validation, and idiomatic `status` fields, it is designed from the ground up to act as a **foundational building block for Internal Developer Platforms (IDPs)**.
-
-You can combine HKIC with orchestrators like [Kube Resource Orchestrator (kro)](https://github.com/kubernetes-sigs/kro) or Crossplane Compositions. This allows Platform Engineers to define higher-level abstractions (e.g., `HetznerDatabaseNode`) that automatically stitch together an `HCloudServer` and an `HCloudVolume` under the hood, hiding infrastructure complexity from developers.
+Like [AWS ACK](https://github.com/aws-controllers-k8s/community), HKIC ships **primitives only** (one CRD per Hetzner resource). Platform teams may layer their own abstractions on top—Helm, Argo CD, [kro](https://github.com/kubernetes-sigs/kro), Crossplane, and so on—but those integrations live **outside** this repo: no runtime dependency, no CI coupling.
 
 ## How It Works
 
@@ -240,7 +236,6 @@ kubectl get hcs,hcv,hclb
 - [k3s kubeconfig access pattern](docs/k3s-on-hcloud.md#secure-kubeconfig-handling-recommended)
 - [Hetzner Cloud API coverage matrix](docs/hcloud-api-coverage.md)
 - [Observability (metrics, events, conditions)](docs/observability.md)
-- [kro composition — HetznerWebStack](docs/composition-kro.md)
 - [Roadmap](docs/roadmap.md)
 - [Helm chart](charts/hcloud-operator/README.md)
 - [Argo CD examples](examples/argo/README.md)

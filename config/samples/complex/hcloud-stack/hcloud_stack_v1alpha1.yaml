@@ -1,8 +1,7 @@
 # Demo stack: one private network, one Hetzner Cloud server attached to it,
 # one block volume attached to that server, and a load balancer selecting it
 # by Kubernetes labels (serverSelector). LB services (listen/target ports) are
-# supported in HCloudLoadBalancer.spec.services — see the loadBalancer block in
-# composition/kro/hetznerwebstack/instance-example.yaml for a full example.
+# supported in HCloudLoadBalancer.spec.services — see the loadBalancer block below.
 #
 # Prerequisites — install ALL CRDs first:
 #   make install
