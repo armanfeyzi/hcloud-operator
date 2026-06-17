@@ -34,7 +34,7 @@ helm install hcloud-operator ./charts/hcloud-operator \
   --namespace hcloud-operator-system \
   --create-namespace \
   --set image.repository=ghcr.io/armanfeyzi/hcloud-operator \
-  --set image.tag=v0.8.3
+  --set image.tag=v0.8.4
 ```
 
 ### Dev quickstart (chart creates Secret — do not use in production)
@@ -79,7 +79,7 @@ kubectl delete -f charts/hcloud-operator/crds/
 |---|---|---|
 | `namespace.name` | `hcloud-operator-system` | Operator namespace |
 | `image.repository` | `ghcr.io/armanfeyzi/hcloud-operator` | Container image |
-| `image.tag` | `v0.8.3` | Image tag (match GitHub Release) |
+| `image.tag` | `v0.8.4` | Image tag (match GitHub Release) |
 | `secret.create` | `false` | Create Secret from `secret.token` |
 | `secret.name` | `hcloud-operator-secret` | Secret referenced by Deployment |
 | `secret.key` | `token` | Secret data key → `HCLOUD_TOKEN` |

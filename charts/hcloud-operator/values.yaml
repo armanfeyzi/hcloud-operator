@@ -6,7 +6,7 @@ namespace:
 
 image:
   repository: ghcr.io/armanfeyzi/hcloud-operator
-  tag: v0.8.3
+  tag: v0.8.4
   pullPolicy: IfNotPresent
 
 replicaCount: 1

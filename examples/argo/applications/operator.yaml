@@ -23,7 +23,7 @@ spec:
           name: hcloud-operator-secret
         image:
           repository: ghcr.io/armanfeyzi/hcloud-operator
-          tag: v0.8.3
+          tag: v0.8.4
   destination:
     server: https://kubernetes.default.svc
     namespace: hcloud-operator-system
