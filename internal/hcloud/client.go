@@ -308,6 +308,8 @@ type Interface interface {
 
 // Client wraps the Hetzner Cloud API client with idempotent helpers.
 // It implements Interface.
+//
+//go:generate go run ../../hack/generate-instrumented.go
 type Client struct {
 	hc *hcloudgo.Client
 }

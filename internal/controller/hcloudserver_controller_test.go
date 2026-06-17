@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -10,11 +11,26 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	infrav1alpha1 "github.com/armanfeyzi/hcloud-operator/api/v1alpha1"
 	hcloudclient "github.com/armanfeyzi/hcloud-operator/internal/hcloud"
 )
+
+// updateServerSpec refreshes the object and patches spec with retry-on-conflict so
+// concurrent reconciler status writes do not fail the test with 409.
+func updateServerSpec(ctx context.Context, name string, mutate func(*infrav1alpha1.HCloudServer)) error {
+	key := types.NamespacedName{Name: name}
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		obj := &infrav1alpha1.HCloudServer{}
+		if err := k8sClient.Get(ctx, key, obj); err != nil {
+			return err
+		}
+		mutate(obj)
+		return k8sClient.Update(ctx, obj)
+	})
+}
 
 // poll / timeout helpers used throughout the tests.
 const (
@@ -369,8 +385,9 @@ var _ = Describe("HCloudServerReconciler", func() {
 				return obj.Status.AppliedNetworkID
 			}, waitTimeout, pollInterval).Should(Equal(networkAID))
 
-			cur.Spec.NetworkRef = &corev1.LocalObjectReference{Name: networkBName}
-			Expect(k8sClient.Update(ctx, cur)).To(Succeed())
+			Expect(updateServerSpec(ctx, serverName, func(obj *infrav1alpha1.HCloudServer) {
+				obj.Spec.NetworkRef = &corev1.LocalObjectReference{Name: networkBName}
+			})).To(Succeed())
 
 			Eventually(func() int64 {
 				obj, _ := fetchServer(serverName)()
@@ -400,10 +417,9 @@ var _ = Describe("HCloudServerReconciler", func() {
 				return s.NetworkIDs
 			}, waitTimeout, pollInterval).Should(Equal([]int64{networkBID}))
 
-			cur, err = fetchServer(serverName)()
-			Expect(err).NotTo(HaveOccurred())
-			cur.Spec.NetworkRef = nil
-			Expect(k8sClient.Update(ctx, cur)).To(Succeed())
+			Expect(updateServerSpec(ctx, serverName, func(obj *infrav1alpha1.HCloudServer) {
+				obj.Spec.NetworkRef = nil
+			})).To(Succeed())
 
 			Eventually(func() int64 {
 				obj, _ := fetchServer(serverName)()

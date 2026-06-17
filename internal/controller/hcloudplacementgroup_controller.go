@@ -7,15 +7,13 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	infrav1alpha1 "github.com/armanfeyzi/hcloud-operator/api/v1alpha1"
 	hcloudclient "github.com/armanfeyzi/hcloud-operator/internal/hcloud"
+	basereconcile "github.com/armanfeyzi/hcloud-operator/internal/reconcile"
 )
 
 const hcloudPlacementGroupFinalizer = "infra.hkc.io/placementgroup-finalizer"
@@ -31,48 +29,36 @@ type HCloudPlacementGroupReconciler struct {
 }
 
 func (r *HCloudPlacementGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	base := &basereconcile.BaseReconciler[*infrav1alpha1.HCloudPlacementGroup]{
+		Client:   r.Client,
+		Recorder: mgr.GetEventRecorderFor("hcloud-placementgroup"),
+		Resource: r,
+	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrav1alpha1.HCloudPlacementGroup{}).
-		Complete(r)
+		Complete(base)
 }
 
-func (r *HCloudPlacementGroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := log.FromContext(ctx)
+func (r *HCloudPlacementGroupReconciler) NewObject() *infrav1alpha1.HCloudPlacementGroup {
+	return &infrav1alpha1.HCloudPlacementGroup{}
+}
 
-	pg := &infrav1alpha1.HCloudPlacementGroup{}
-	if err := r.Get(ctx, req.NamespacedName, pg); err != nil {
-		return ctrl.Result{}, client.IgnoreNotFound(err)
-	}
+func (r *HCloudPlacementGroupReconciler) FinalizerName() string { return hcloudPlacementGroupFinalizer }
 
-	if !pg.DeletionTimestamp.IsZero() {
-		if controllerutil.ContainsFinalizer(pg, hcloudPlacementGroupFinalizer) {
-			log.Info("Handling placement group deletion", "placementGroupID", pg.Status.PlacementGroupID)
-			if err := r.deleteHCloudPlacementGroup(ctx, pg); err != nil {
-				return ctrl.Result{}, fmt.Errorf("delete Hetzner placement group: %w", err)
-			}
-			controllerutil.RemoveFinalizer(pg, hcloudPlacementGroupFinalizer)
-			if err := r.Update(ctx, pg); err != nil {
-				return ctrl.Result{}, fmt.Errorf("remove finalizer: %w", err)
-			}
-		}
-		return ctrl.Result{}, nil
-	}
+func (r *HCloudPlacementGroupReconciler) Kind() string { return "HCloudPlacementGroup" }
 
-	if !controllerutil.ContainsFinalizer(pg, hcloudPlacementGroupFinalizer) {
-		controllerutil.AddFinalizer(pg, hcloudPlacementGroupFinalizer)
-		if err := r.Update(ctx, pg); err != nil {
-			return ctrl.Result{}, fmt.Errorf("add finalizer: %w", err)
-		}
-		return ctrl.Result{Requeue: true}, nil
-	}
-
+func (r *HCloudPlacementGroupReconciler) Reconcile(ctx context.Context, pg *infrav1alpha1.HCloudPlacementGroup) (ctrl.Result, error) {
 	if err := r.reconcileHCloudPlacementGroup(ctx, pg); err != nil {
-		r.setPlacementGroupCondition(pg, conditionTypeReady, metav1.ConditionFalse, "ReconcileError", err.Error())
-		_ = r.updatePlacementGroupStatusWithRetry(ctx, pg)
 		return ctrl.Result{}, err
 	}
-
 	return ctrl.Result{RequeueAfter: requeueDelay}, nil
+}
+
+func (r *HCloudPlacementGroupReconciler) Delete(ctx context.Context, pg *infrav1alpha1.HCloudPlacementGroup) error {
+	if pg.Status.PlacementGroupID == 0 {
+		return nil
+	}
+	return r.HCloudClient.DeletePlacementGroup(ctx, pg.Status.PlacementGroupID)
 }
 
 func (r *HCloudPlacementGroupReconciler) reconcileHCloudPlacementGroup(ctx context.Context, obj *infrav1alpha1.HCloudPlacementGroup) error {
@@ -107,20 +93,13 @@ func (r *HCloudPlacementGroupReconciler) reconcileHCloudPlacementGroup(ctx conte
 		obj.Status.PlacementGroupID = created.ID
 		obj.Status.Type = created.Type
 		r.setPlacementGroupCondition(obj, conditionTypeReady, metav1.ConditionTrue, "PlacementGroupCreated", "Placement group created in Hetzner")
-		return r.updatePlacementGroupStatusWithRetry(ctx, obj)
+		return nil
 	}
 
 	obj.Status.PlacementGroupID = existing.ID
 	obj.Status.Type = existing.Type
 	r.setPlacementGroupCondition(obj, conditionTypeReady, metav1.ConditionTrue, "PlacementGroupReady", "Placement group is provisioned")
-	return r.updatePlacementGroupStatusWithRetry(ctx, obj)
-}
-
-func (r *HCloudPlacementGroupReconciler) deleteHCloudPlacementGroup(ctx context.Context, obj *infrav1alpha1.HCloudPlacementGroup) error {
-	if obj.Status.PlacementGroupID == 0 {
-		return nil
-	}
-	return r.HCloudClient.DeletePlacementGroup(ctx, obj.Status.PlacementGroupID)
+	return nil
 }
 
 func (r *HCloudPlacementGroupReconciler) setPlacementGroupCondition(
@@ -135,19 +114,5 @@ func (r *HCloudPlacementGroupReconciler) setPlacementGroupCondition(
 		Reason:             reason,
 		Message:            message,
 		LastTransitionTime: metav1.Now(),
-	})
-}
-
-func (r *HCloudPlacementGroupReconciler) updatePlacementGroupStatusWithRetry(ctx context.Context, obj *infrav1alpha1.HCloudPlacementGroup) error {
-	key := types.NamespacedName{Name: obj.Name, Namespace: obj.Namespace}
-	desiredStatus := obj.Status.DeepCopy()
-
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current := &infrav1alpha1.HCloudPlacementGroup{}
-		if err := r.Get(ctx, key, current); err != nil {
-			return err
-		}
-		current.Status = *desiredStatus.DeepCopy()
-		return r.Status().Update(ctx, current)
 	})
 }

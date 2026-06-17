@@ -12,11 +12,11 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	infrav1alpha1 "github.com/armanfeyzi/hcloud-operator/api/v1alpha1"
 	hcloudclient "github.com/armanfeyzi/hcloud-operator/internal/hcloud"
+	basereconcile "github.com/armanfeyzi/hcloud-operator/internal/reconcile"
 )
 
 const hcloudNetworkFinalizer = "infra.hkc.io/network-finalizer"
@@ -32,48 +32,36 @@ type HCloudNetworkReconciler struct {
 }
 
 func (r *HCloudNetworkReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	base := &basereconcile.BaseReconciler[*infrav1alpha1.HCloudNetwork]{
+		Client:   r.Client,
+		Recorder: mgr.GetEventRecorderFor("hcloud-network"),
+		Resource: r,
+	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrav1alpha1.HCloudNetwork{}).
-		Complete(r)
+		Complete(base)
 }
 
-func (r *HCloudNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := log.FromContext(ctx)
+func (r *HCloudNetworkReconciler) NewObject() *infrav1alpha1.HCloudNetwork {
+	return &infrav1alpha1.HCloudNetwork{}
+}
 
-	net := &infrav1alpha1.HCloudNetwork{}
-	if err := r.Get(ctx, req.NamespacedName, net); err != nil {
-		return ctrl.Result{}, client.IgnoreNotFound(err)
-	}
+func (r *HCloudNetworkReconciler) FinalizerName() string { return hcloudNetworkFinalizer }
 
-	if !net.DeletionTimestamp.IsZero() {
-		if controllerutil.ContainsFinalizer(net, hcloudNetworkFinalizer) {
-			log.Info("Handling network deletion", "networkID", net.Status.NetworkID)
-			if err := r.deleteHCloudNetwork(ctx, net); err != nil {
-				return ctrl.Result{}, fmt.Errorf("delete Hetzner network: %w", err)
-			}
-			controllerutil.RemoveFinalizer(net, hcloudNetworkFinalizer)
-			if err := r.Update(ctx, net); err != nil {
-				return ctrl.Result{}, fmt.Errorf("remove finalizer: %w", err)
-			}
-		}
-		return ctrl.Result{}, nil
-	}
+func (r *HCloudNetworkReconciler) Kind() string { return "HCloudNetwork" }
 
-	if !controllerutil.ContainsFinalizer(net, hcloudNetworkFinalizer) {
-		controllerutil.AddFinalizer(net, hcloudNetworkFinalizer)
-		if err := r.Update(ctx, net); err != nil {
-			return ctrl.Result{}, fmt.Errorf("add finalizer: %w", err)
-		}
-		return ctrl.Result{Requeue: true}, nil
-	}
-
+func (r *HCloudNetworkReconciler) Reconcile(ctx context.Context, net *infrav1alpha1.HCloudNetwork) (ctrl.Result, error) {
 	if err := r.reconcileHCloudNetwork(ctx, net); err != nil {
-		r.setNetworkCondition(net, conditionTypeReady, metav1.ConditionFalse, "ReconcileError", err.Error())
-		_ = r.updateNetworkStatusWithRetry(ctx, net)
 		return ctrl.Result{}, err
 	}
-
 	return ctrl.Result{RequeueAfter: requeueDelay}, nil
+}
+
+func (r *HCloudNetworkReconciler) Delete(ctx context.Context, net *infrav1alpha1.HCloudNetwork) error {
+	if net.Status.NetworkID == 0 {
+		return nil
+	}
+	return r.HCloudClient.DeleteNetwork(ctx, net.Status.NetworkID)
 }
 
 func (r *HCloudNetworkReconciler) reconcileHCloudNetwork(ctx context.Context, obj *infrav1alpha1.HCloudNetwork) error {
@@ -139,7 +127,7 @@ func (r *HCloudNetworkReconciler) reconcileHCloudNetwork(ctx context.Context, ob
 	obj.Status.SubnetZones = append([]string{}, existing.SubnetZones...)
 	slices.Sort(obj.Status.SubnetZones)
 	r.setNetworkCondition(obj, conditionTypeReady, metav1.ConditionTrue, "NetworkReady", "Private network is provisioned")
-	return r.updateNetworkStatusWithRetry(ctx, obj)
+	return nil
 }
 
 func subnetZonePresent(zones []string, want string) bool {
@@ -149,13 +137,6 @@ func subnetZonePresent(zones []string, want string) bool {
 		}
 	}
 	return false
-}
-
-func (r *HCloudNetworkReconciler) deleteHCloudNetwork(ctx context.Context, obj *infrav1alpha1.HCloudNetwork) error {
-	if obj.Status.NetworkID == 0 {
-		return nil
-	}
-	return r.HCloudClient.DeleteNetwork(ctx, obj.Status.NetworkID)
 }
 
 func (r *HCloudNetworkReconciler) setNetworkCondition(

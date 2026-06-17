@@ -76,10 +76,12 @@ func main() {
 	}
 
 	// ── Register Reconcilers ───────────────────────────────────────────────
+	hcloudAPI := hcloudclient.Instrument(hcloudclient.NewClient(hcloudToken))
+
 	if err = (&controller.HCloudServerReconciler{
 		Client:       mgr.GetClient(),
 		Scheme:       mgr.GetScheme(),
-		HCloudClient: hcloudclient.NewClient(hcloudToken),
+		HCloudClient: hcloudAPI,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "HCloudServer")
 		os.Exit(1)
@@ -88,7 +90,7 @@ func main() {
 	if err = (&controller.HCloudVolumeReconciler{
 		Client:       mgr.GetClient(),
 		Scheme:       mgr.GetScheme(),
-		HCloudClient: hcloudclient.NewClient(hcloudToken),
+		HCloudClient: hcloudAPI,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "HCloudVolume")
 		os.Exit(1)
@@ -97,7 +99,7 @@ func main() {
 	if err = (&controller.HCloudLoadBalancerReconciler{
 		Client:       mgr.GetClient(),
 		Scheme:       mgr.GetScheme(),
-		HCloudClient: hcloudclient.NewClient(hcloudToken),
+		HCloudClient: hcloudAPI,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "HCloudLoadBalancer")
 		os.Exit(1)
@@ -106,7 +108,7 @@ func main() {
 	if err = (&controller.HCloudNetworkReconciler{
 		Client:       mgr.GetClient(),
 		Scheme:       mgr.GetScheme(),
-		HCloudClient: hcloudclient.NewClient(hcloudToken),
+		HCloudClient: hcloudAPI,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "HCloudNetwork")
 		os.Exit(1)
@@ -115,7 +117,7 @@ func main() {
 	if err = (&controller.HCloudFirewallReconciler{
 		Client:       mgr.GetClient(),
 		Scheme:       mgr.GetScheme(),
-		HCloudClient: hcloudclient.NewClient(hcloudToken),
+		HCloudClient: hcloudAPI,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "HCloudFirewall")
 		os.Exit(1)
@@ -124,7 +126,7 @@ func main() {
 	if err = (&controller.HCloudPlacementGroupReconciler{
 		Client:       mgr.GetClient(),
 		Scheme:       mgr.GetScheme(),
-		HCloudClient: hcloudclient.NewClient(hcloudToken),
+		HCloudClient: hcloudAPI,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "HCloudPlacementGroup")
 		os.Exit(1)
@@ -133,7 +135,7 @@ func main() {
 	if err = (&controller.HCloudPrimaryIPReconciler{
 		Client:       mgr.GetClient(),
 		Scheme:       mgr.GetScheme(),
-		HCloudClient: hcloudclient.NewClient(hcloudToken),
+		HCloudClient: hcloudAPI,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "HCloudPrimaryIP")
 		os.Exit(1)
@@ -142,7 +144,7 @@ func main() {
 	if err = (&controller.HCloudFloatingIPReconciler{
 		Client:       mgr.GetClient(),
 		Scheme:       mgr.GetScheme(),
-		HCloudClient: hcloudclient.NewClient(hcloudToken),
+		HCloudClient: hcloudAPI,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "HCloudFloatingIP")
 		os.Exit(1)
@@ -151,7 +153,7 @@ func main() {
 	if err = (&controller.HCloudCertificateReconciler{
 		Client:       mgr.GetClient(),
 		Scheme:       mgr.GetScheme(),
-		HCloudClient: hcloudclient.NewClient(hcloudToken),
+		HCloudClient: hcloudAPI,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "HCloudCertificate")
 		os.Exit(1)

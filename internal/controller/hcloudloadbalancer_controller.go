@@ -13,15 +13,14 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrav1alpha1 "github.com/armanfeyzi/hcloud-operator/api/v1alpha1"
 	hcloudclient "github.com/armanfeyzi/hcloud-operator/internal/hcloud"
+	basereconcile "github.com/armanfeyzi/hcloud-operator/internal/reconcile"
 )
 
 const hcloudLoadBalancerFinalizer = "infra.hkc.io/loadbalancer-finalizer"
@@ -39,6 +38,11 @@ type HCloudLoadBalancerReconciler struct {
 }
 
 func (r *HCloudLoadBalancerReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	base := &basereconcile.BaseReconciler[*infrav1alpha1.HCloudLoadBalancer]{
+		Client:   r.Client,
+		Recorder: mgr.GetEventRecorderFor("hcloud-loadbalancer"),
+		Resource: r,
+	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrav1alpha1.HCloudLoadBalancer{}).
 		Watches(
@@ -49,8 +53,16 @@ func (r *HCloudLoadBalancerReconciler) SetupWithManager(mgr ctrl.Manager) error 
 			&infrav1alpha1.HCloudCertificate{},
 			handler.EnqueueRequestsFromMapFunc(r.mapCertificateToLoadBalancers),
 		).
-		Complete(r)
+		Complete(base)
 }
+
+func (r *HCloudLoadBalancerReconciler) NewObject() *infrav1alpha1.HCloudLoadBalancer {
+	return &infrav1alpha1.HCloudLoadBalancer{}
+}
+
+func (r *HCloudLoadBalancerReconciler) FinalizerName() string { return hcloudLoadBalancerFinalizer }
+
+func (r *HCloudLoadBalancerReconciler) Kind() string { return "HCloudLoadBalancer" }
 
 func (r *HCloudLoadBalancerReconciler) mapCertificateToLoadBalancers(ctx context.Context, obj client.Object) []reconcile.Request {
 	cert, ok := obj.(*infrav1alpha1.HCloudCertificate)
@@ -91,49 +103,24 @@ func (r *HCloudLoadBalancerReconciler) enqueueAllLoadBalancersForServerChange(ct
 	return reqs
 }
 
-func (r *HCloudLoadBalancerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	lb := &infrav1alpha1.HCloudLoadBalancer{}
-	if err := r.Get(ctx, req.NamespacedName, lb); err != nil {
-		return ctrl.Result{}, client.IgnoreNotFound(err)
-	}
-
-	if !lb.DeletionTimestamp.IsZero() {
-		if controllerutil.ContainsFinalizer(lb, hcloudLoadBalancerFinalizer) {
-			if lb.Status.LoadBalancerID != 0 {
-				if err := r.HCloudClient.DeleteLoadBalancer(ctx, lb.Status.LoadBalancerID); err != nil {
-					return ctrl.Result{}, fmt.Errorf("delete load balancer: %w", err)
-				}
-			}
-			controllerutil.RemoveFinalizer(lb, hcloudLoadBalancerFinalizer)
-			if err := r.Update(ctx, lb); err != nil {
-				return ctrl.Result{}, fmt.Errorf("remove finalizer: %w", err)
-			}
-		}
-		return ctrl.Result{}, nil
-	}
-
-	if !controllerutil.ContainsFinalizer(lb, hcloudLoadBalancerFinalizer) {
-		controllerutil.AddFinalizer(lb, hcloudLoadBalancerFinalizer)
-		if err := r.Update(ctx, lb); err != nil {
-			return ctrl.Result{}, fmt.Errorf("add finalizer: %w", err)
-		}
-		return ctrl.Result{Requeue: true}, nil
-	}
-
+func (r *HCloudLoadBalancerReconciler) Reconcile(ctx context.Context, lb *infrav1alpha1.HCloudLoadBalancer) (ctrl.Result, error) {
 	selectedServerIDs, err := r.getSelectedServerIDs(ctx, lb.Spec.ServerSelector)
 	if err != nil {
-		r.setCondition(lb, conditionTypeReady, metav1.ConditionFalse, "SelectorError", err.Error())
-		_ = r.updateLoadBalancerStatusWithRetry(ctx, lb)
 		return ctrl.Result{}, err
 	}
 
 	if err := r.reconcileLoadBalancer(ctx, lb, selectedServerIDs); err != nil {
-		r.setCondition(lb, conditionTypeReady, metav1.ConditionFalse, "ReconcileError", err.Error())
-		_ = r.updateLoadBalancerStatusWithRetry(ctx, lb)
 		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{RequeueAfter: requeueDelay}, nil
+}
+
+func (r *HCloudLoadBalancerReconciler) Delete(ctx context.Context, lb *infrav1alpha1.HCloudLoadBalancer) error {
+	if lb.Status.LoadBalancerID == 0 {
+		return nil
+	}
+	return r.HCloudClient.DeleteLoadBalancer(ctx, lb.Status.LoadBalancerID)
 }
 
 func (r *HCloudLoadBalancerReconciler) reconcileLoadBalancer(
@@ -147,7 +134,7 @@ func (r *HCloudLoadBalancerReconciler) reconcileLoadBalancer(
 	}
 	if pending {
 		r.setCondition(obj, conditionTypeReady, metav1.ConditionFalse, "CertificatePending", "Waiting for referenced HCloudCertificate resources")
-		return r.updateLoadBalancerStatusWithRetry(ctx, obj)
+		return nil
 	}
 
 	return r.reconcileLoadBalancerWithServices(ctx, obj, selectedServerIDs, desiredServices)
@@ -233,7 +220,7 @@ func (r *HCloudLoadBalancerReconciler) reconcileLoadBalancerWithServices(
 	obj.Status.PublicIPv6 = refreshed.PublicIPv6
 	obj.Status.AttachedServerIDs = refreshed.Targets
 	r.setCondition(obj, conditionTypeReady, metav1.ConditionTrue, "LoadBalancerReady", "Load balancer is provisioned and targets are in sync")
-	return r.updateLoadBalancerStatusWithRetry(ctx, obj)
+	return nil
 }
 
 func (r *HCloudLoadBalancerReconciler) loadBalancerServicesFromSpec(
@@ -379,19 +366,5 @@ func (r *HCloudLoadBalancerReconciler) setCondition(
 		Reason:             reason,
 		Message:            message,
 		LastTransitionTime: metav1.Now(),
-	})
-}
-
-func (r *HCloudLoadBalancerReconciler) updateLoadBalancerStatusWithRetry(ctx context.Context, obj *infrav1alpha1.HCloudLoadBalancer) error {
-	key := types.NamespacedName{Name: obj.Name, Namespace: obj.Namespace}
-	desiredStatus := obj.Status.DeepCopy()
-
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current := &infrav1alpha1.HCloudLoadBalancer{}
-		if err := r.Get(ctx, key, current); err != nil {
-			return err
-		}
-		current.Status = *desiredStatus.DeepCopy()
-		return r.Status().Update(ctx, current)
 	})
 }

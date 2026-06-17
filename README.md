@@ -239,6 +239,8 @@ kubectl get hcs,hcv,hclb
 - [k3s cluster-shape composition recipe](docs/k3s-cluster-shape-recipe.md)
 - [k3s kubeconfig access pattern](docs/k3s-on-hcloud.md#secure-kubeconfig-handling-recommended)
 - [Hetzner Cloud API coverage matrix](docs/hcloud-api-coverage.md)
+- [Observability (metrics, events, conditions)](docs/observability.md)
+- [kro composition — HetznerWebStack](docs/composition-kro.md)
 - [Roadmap](docs/roadmap.md)
 - [Helm chart](charts/hcloud-operator/README.md)
 - [Argo CD examples](examples/argo/README.md)

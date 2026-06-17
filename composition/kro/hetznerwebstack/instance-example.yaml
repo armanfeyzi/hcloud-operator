@@ -1,0 +1,41 @@
+# Example HetznerWebStack instance — mirrors config/samples/complex/hcloud-stack.
+# Prerequisites: kro installed, HKIC CRDs applied, operator running with HCLOUD_TOKEN.
+#
+#   make kro-install
+#   kubectl apply -f config/crd/bases/
+#   kubectl apply -f composition/kro/hetznerwebstack/rgd.yaml
+#   kubectl apply -f composition/kro/hetznerwebstack/instance-example.yaml
+apiVersion: kro.run/v1alpha1
+kind: HetznerWebStack
+metadata:
+  name: demo
+spec:
+  location: fsn1
+  labels:
+    env: demo
+    managed-by: hcloud-operator
+  network:
+    ipRange: 10.90.0.0/16
+    zones:
+      - eu-central
+  server:
+    type: cx23
+    image: ubuntu-22.04
+    sshKeys: []
+    userData: ""
+  volume:
+    size: 20
+    format: ext4
+  loadBalancer:
+    type: lb11
+    algorithm: round_robin
+    services:
+      - listenPort: 80
+        destinationPort: 80
+        protocol: tcp
+        healthCheck:
+          protocol: tcp
+          port: 80
+          interval: 15s
+          timeout: 10s
+          retries: 3

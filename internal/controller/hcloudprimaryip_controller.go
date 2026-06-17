@@ -10,16 +10,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrav1alpha1 "github.com/armanfeyzi/hcloud-operator/api/v1alpha1"
 	hcloudclient "github.com/armanfeyzi/hcloud-operator/internal/hcloud"
+	basereconcile "github.com/armanfeyzi/hcloud-operator/internal/reconcile"
 )
 
 const (
@@ -41,6 +40,12 @@ type HCloudPrimaryIPReconciler struct {
 }
 
 func (r *HCloudPrimaryIPReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	base := &basereconcile.BaseReconciler[*infrav1alpha1.HCloudPrimaryIP]{
+		Client:   r.Client,
+		Recorder: mgr.GetEventRecorderFor("hcloud-primaryip"),
+		Resource: r,
+	}
+
 	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &infrav1alpha1.HCloudPrimaryIP{}, hcloudPrimaryIPByServerRefNameField, func(rawObj client.Object) []string {
 		pip, ok := rawObj.(*infrav1alpha1.HCloudPrimaryIP)
 		if !ok || pip.Spec.ServerRef == nil || pip.Spec.ServerRef.Name == "" {
@@ -57,8 +62,16 @@ func (r *HCloudPrimaryIPReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			&infrav1alpha1.HCloudServer{},
 			handler.EnqueueRequestsFromMapFunc(r.mapServerToPrimaryIPs),
 		).
-		Complete(r)
+		Complete(base)
 }
+
+func (r *HCloudPrimaryIPReconciler) NewObject() *infrav1alpha1.HCloudPrimaryIP {
+	return &infrav1alpha1.HCloudPrimaryIP{}
+}
+
+func (r *HCloudPrimaryIPReconciler) FinalizerName() string { return hcloudPrimaryIPFinalizer }
+
+func (r *HCloudPrimaryIPReconciler) Kind() string { return "HCloudPrimaryIP" }
 
 func (r *HCloudPrimaryIPReconciler) mapServerToPrimaryIPs(ctx context.Context, obj client.Object) []reconcile.Request {
 	server, ok := obj.(*infrav1alpha1.HCloudServer)
@@ -78,55 +91,31 @@ func (r *HCloudPrimaryIPReconciler) mapServerToPrimaryIPs(ctx context.Context, o
 	return requests
 }
 
-func (r *HCloudPrimaryIPReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := log.FromContext(ctx)
-
-	pip := &infrav1alpha1.HCloudPrimaryIP{}
-	if err := r.Get(ctx, req.NamespacedName, pip); err != nil {
-		return ctrl.Result{}, client.IgnoreNotFound(err)
-	}
-
-	if !pip.DeletionTimestamp.IsZero() {
-		if controllerutil.ContainsFinalizer(pip, hcloudPrimaryIPFinalizer) {
-			log.Info("Handling primary IP deletion", "primaryIPID", pip.Status.PrimaryIPID)
-			if err := r.deleteHCloudPrimaryIP(ctx, pip); err != nil {
-				return ctrl.Result{}, fmt.Errorf("delete Hetzner primary IP: %w", err)
-			}
-			controllerutil.RemoveFinalizer(pip, hcloudPrimaryIPFinalizer)
-			if err := r.Update(ctx, pip); err != nil {
-				return ctrl.Result{}, fmt.Errorf("remove finalizer: %w", err)
-			}
-		}
-		return ctrl.Result{}, nil
-	}
-
-	if !controllerutil.ContainsFinalizer(pip, hcloudPrimaryIPFinalizer) {
-		controllerutil.AddFinalizer(pip, hcloudPrimaryIPFinalizer)
-		if err := r.Update(ctx, pip); err != nil {
-			return ctrl.Result{}, fmt.Errorf("add finalizer: %w", err)
-		}
-		return ctrl.Result{Requeue: true}, nil
-	}
-
+func (r *HCloudPrimaryIPReconciler) Reconcile(ctx context.Context, pip *infrav1alpha1.HCloudPrimaryIP) (ctrl.Result, error) {
 	targetServerID, pending, err := r.resolveTargetServerID(ctx, pip)
 	if err != nil {
-		r.setPrimaryIPCondition(pip, conditionTypeReady, metav1.ConditionFalse, "ServerRefError", err.Error())
-		_ = r.updatePrimaryIPStatusWithRetry(ctx, pip)
 		return ctrl.Result{}, err
 	}
 	if pending {
 		r.setPrimaryIPCondition(pip, conditionTypeReady, metav1.ConditionFalse, "ServerPending", "Waiting for referenced HCloudServer to be provisioned")
-		_ = r.updatePrimaryIPStatusWithRetry(ctx, pip)
 		return ctrl.Result{RequeueAfter: requeueDelay}, nil
 	}
 
 	if err := r.reconcileHCloudPrimaryIP(ctx, pip, targetServerID); err != nil {
-		r.setPrimaryIPCondition(pip, conditionTypeReady, metav1.ConditionFalse, "ReconcileError", err.Error())
-		_ = r.updatePrimaryIPStatusWithRetry(ctx, pip)
 		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{RequeueAfter: requeueDelay}, nil
+}
+
+func (r *HCloudPrimaryIPReconciler) Delete(ctx context.Context, pip *infrav1alpha1.HCloudPrimaryIP) error {
+	if pip.Status.PrimaryIPID == 0 {
+		return nil
+	}
+	if err := r.HCloudClient.UnassignPrimaryIP(ctx, pip.Status.PrimaryIPID); err != nil {
+		return fmt.Errorf("unassign primary IP before delete: %w", err)
+	}
+	return r.HCloudClient.DeletePrimaryIP(ctx, pip.Status.PrimaryIPID)
 }
 
 func (r *HCloudPrimaryIPReconciler) resolveTargetServerID(ctx context.Context, obj *infrav1alpha1.HCloudPrimaryIP) (int64, bool, error) {
@@ -223,7 +212,7 @@ func (r *HCloudPrimaryIPReconciler) reconcileHCloudPrimaryIP(ctx context.Context
 
 	r.syncPrimaryIPStatus(obj, refreshed)
 	r.setPrimaryIPCondition(obj, conditionTypeReady, metav1.ConditionTrue, "PrimaryIPReady", "Primary IP is provisioned")
-	return r.updatePrimaryIPStatusWithRetry(ctx, obj)
+	return nil
 }
 
 func (r *HCloudPrimaryIPReconciler) ensurePrimaryIPMetadata(ctx context.Context, obj *infrav1alpha1.HCloudPrimaryIP, existing *hcloudclient.PrimaryIPInfo) error {
@@ -303,16 +292,6 @@ func (r *HCloudPrimaryIPReconciler) syncPrimaryIPStatus(obj *infrav1alpha1.HClou
 	}
 }
 
-func (r *HCloudPrimaryIPReconciler) deleteHCloudPrimaryIP(ctx context.Context, obj *infrav1alpha1.HCloudPrimaryIP) error {
-	if obj.Status.PrimaryIPID == 0 {
-		return nil
-	}
-	if err := r.HCloudClient.UnassignPrimaryIP(ctx, obj.Status.PrimaryIPID); err != nil {
-		return fmt.Errorf("unassign primary IP before delete: %w", err)
-	}
-	return r.HCloudClient.DeletePrimaryIP(ctx, obj.Status.PrimaryIPID)
-}
-
 func (r *HCloudPrimaryIPReconciler) setPrimaryIPCondition(
 	obj *infrav1alpha1.HCloudPrimaryIP,
 	condType string,
@@ -325,20 +304,6 @@ func (r *HCloudPrimaryIPReconciler) setPrimaryIPCondition(
 		Reason:             reason,
 		Message:            message,
 		LastTransitionTime: metav1.Now(),
-	})
-}
-
-func (r *HCloudPrimaryIPReconciler) updatePrimaryIPStatusWithRetry(ctx context.Context, obj *infrav1alpha1.HCloudPrimaryIP) error {
-	key := types.NamespacedName{Name: obj.Name, Namespace: obj.Namespace}
-	desiredStatus := obj.Status.DeepCopy()
-
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current := &infrav1alpha1.HCloudPrimaryIP{}
-		if err := r.Get(ctx, key, current); err != nil {
-			return err
-		}
-		current.Status = *desiredStatus.DeepCopy()
-		return r.Status().Update(ctx, current)
 	})
 }
 

@@ -9,16 +9,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrav1alpha1 "github.com/armanfeyzi/hcloud-operator/api/v1alpha1"
 	hcloudclient "github.com/armanfeyzi/hcloud-operator/internal/hcloud"
+	basereconcile "github.com/armanfeyzi/hcloud-operator/internal/reconcile"
 )
 
 const (
@@ -40,6 +39,12 @@ type HCloudFloatingIPReconciler struct {
 }
 
 func (r *HCloudFloatingIPReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	base := &basereconcile.BaseReconciler[*infrav1alpha1.HCloudFloatingIP]{
+		Client:   r.Client,
+		Recorder: mgr.GetEventRecorderFor("hcloud-floatingip"),
+		Resource: r,
+	}
+
 	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &infrav1alpha1.HCloudFloatingIP{}, hcloudFloatingIPByServerRefNameField, func(rawObj client.Object) []string {
 		fip, ok := rawObj.(*infrav1alpha1.HCloudFloatingIP)
 		if !ok || fip.Spec.ServerRef == nil || fip.Spec.ServerRef.Name == "" {
@@ -56,8 +61,16 @@ func (r *HCloudFloatingIPReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			&infrav1alpha1.HCloudServer{},
 			handler.EnqueueRequestsFromMapFunc(r.mapServerToFloatingIPs),
 		).
-		Complete(r)
+		Complete(base)
 }
+
+func (r *HCloudFloatingIPReconciler) NewObject() *infrav1alpha1.HCloudFloatingIP {
+	return &infrav1alpha1.HCloudFloatingIP{}
+}
+
+func (r *HCloudFloatingIPReconciler) FinalizerName() string { return hcloudFloatingIPFinalizer }
+
+func (r *HCloudFloatingIPReconciler) Kind() string { return "HCloudFloatingIP" }
 
 func (r *HCloudFloatingIPReconciler) mapServerToFloatingIPs(ctx context.Context, obj client.Object) []reconcile.Request {
 	server, ok := obj.(*infrav1alpha1.HCloudServer)
@@ -77,55 +90,31 @@ func (r *HCloudFloatingIPReconciler) mapServerToFloatingIPs(ctx context.Context,
 	return requests
 }
 
-func (r *HCloudFloatingIPReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := log.FromContext(ctx)
-
-	fip := &infrav1alpha1.HCloudFloatingIP{}
-	if err := r.Get(ctx, req.NamespacedName, fip); err != nil {
-		return ctrl.Result{}, client.IgnoreNotFound(err)
-	}
-
-	if !fip.DeletionTimestamp.IsZero() {
-		if controllerutil.ContainsFinalizer(fip, hcloudFloatingIPFinalizer) {
-			log.Info("Handling floating IP deletion", "floatingIPID", fip.Status.FloatingIPID)
-			if err := r.deleteHCloudFloatingIP(ctx, fip); err != nil {
-				return ctrl.Result{}, fmt.Errorf("delete Hetzner floating IP: %w", err)
-			}
-			controllerutil.RemoveFinalizer(fip, hcloudFloatingIPFinalizer)
-			if err := r.Update(ctx, fip); err != nil {
-				return ctrl.Result{}, fmt.Errorf("remove finalizer: %w", err)
-			}
-		}
-		return ctrl.Result{}, nil
-	}
-
-	if !controllerutil.ContainsFinalizer(fip, hcloudFloatingIPFinalizer) {
-		controllerutil.AddFinalizer(fip, hcloudFloatingIPFinalizer)
-		if err := r.Update(ctx, fip); err != nil {
-			return ctrl.Result{}, fmt.Errorf("add finalizer: %w", err)
-		}
-		return ctrl.Result{Requeue: true}, nil
-	}
-
+func (r *HCloudFloatingIPReconciler) Reconcile(ctx context.Context, fip *infrav1alpha1.HCloudFloatingIP) (ctrl.Result, error) {
 	targetServerID, pending, err := r.resolveTargetServerID(ctx, fip)
 	if err != nil {
-		r.setFloatingIPCondition(fip, conditionTypeReady, metav1.ConditionFalse, "ServerRefError", err.Error())
-		_ = r.updateFloatingIPStatusWithRetry(ctx, fip)
 		return ctrl.Result{}, err
 	}
 	if pending {
 		r.setFloatingIPCondition(fip, conditionTypeReady, metav1.ConditionFalse, "ServerPending", "Waiting for referenced HCloudServer to be provisioned")
-		_ = r.updateFloatingIPStatusWithRetry(ctx, fip)
 		return ctrl.Result{RequeueAfter: requeueDelay}, nil
 	}
 
 	if err := r.reconcileHCloudFloatingIP(ctx, fip, targetServerID); err != nil {
-		r.setFloatingIPCondition(fip, conditionTypeReady, metav1.ConditionFalse, "ReconcileError", err.Error())
-		_ = r.updateFloatingIPStatusWithRetry(ctx, fip)
 		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{RequeueAfter: requeueDelay}, nil
+}
+
+func (r *HCloudFloatingIPReconciler) Delete(ctx context.Context, fip *infrav1alpha1.HCloudFloatingIP) error {
+	if fip.Status.FloatingIPID == 0 {
+		return nil
+	}
+	if err := r.HCloudClient.UnassignFloatingIP(ctx, fip.Status.FloatingIPID); err != nil {
+		return fmt.Errorf("unassign floating IP before delete: %w", err)
+	}
+	return r.HCloudClient.DeleteFloatingIP(ctx, fip.Status.FloatingIPID)
 }
 
 func (r *HCloudFloatingIPReconciler) resolveTargetServerID(ctx context.Context, obj *infrav1alpha1.HCloudFloatingIP) (int64, bool, error) {
@@ -221,7 +210,7 @@ func (r *HCloudFloatingIPReconciler) reconcileHCloudFloatingIP(ctx context.Conte
 
 	r.syncFloatingIPStatus(obj, refreshed)
 	r.setFloatingIPCondition(obj, conditionTypeReady, metav1.ConditionTrue, "FloatingIPReady", "Floating IP is provisioned")
-	return r.updateFloatingIPStatusWithRetry(ctx, obj)
+	return nil
 }
 
 func (r *HCloudFloatingIPReconciler) ensureFloatingIPMetadata(ctx context.Context, obj *infrav1alpha1.HCloudFloatingIP, existing *hcloudclient.FloatingIPInfo) error {
@@ -301,16 +290,6 @@ func (r *HCloudFloatingIPReconciler) syncFloatingIPStatus(obj *infrav1alpha1.HCl
 	}
 }
 
-func (r *HCloudFloatingIPReconciler) deleteHCloudFloatingIP(ctx context.Context, obj *infrav1alpha1.HCloudFloatingIP) error {
-	if obj.Status.FloatingIPID == 0 {
-		return nil
-	}
-	if err := r.HCloudClient.UnassignFloatingIP(ctx, obj.Status.FloatingIPID); err != nil {
-		return fmt.Errorf("unassign floating IP before delete: %w", err)
-	}
-	return r.HCloudClient.DeleteFloatingIP(ctx, obj.Status.FloatingIPID)
-}
-
 func (r *HCloudFloatingIPReconciler) setFloatingIPCondition(
 	obj *infrav1alpha1.HCloudFloatingIP,
 	condType string,
@@ -323,19 +302,5 @@ func (r *HCloudFloatingIPReconciler) setFloatingIPCondition(
 		Reason:             reason,
 		Message:            message,
 		LastTransitionTime: metav1.Now(),
-	})
-}
-
-func (r *HCloudFloatingIPReconciler) updateFloatingIPStatusWithRetry(ctx context.Context, obj *infrav1alpha1.HCloudFloatingIP) error {
-	key := types.NamespacedName{Name: obj.Name, Namespace: obj.Namespace}
-	desiredStatus := obj.Status.DeepCopy()
-
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current := &infrav1alpha1.HCloudFloatingIP{}
-		if err := r.Get(ctx, key, current); err != nil {
-			return err
-		}
-		current.Status = *desiredStatus.DeepCopy()
-		return r.Status().Update(ctx, current)
 	})
 }

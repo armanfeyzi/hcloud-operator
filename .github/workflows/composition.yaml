@@ -1,0 +1,81 @@
+name: Composition
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'composition/**'
+      - 'config/crd/bases/**'
+      - '.github/workflows/composition.yaml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'composition/**'
+      - 'config/crd/bases/**'
+      - '.github/workflows/composition.yaml'
+
+jobs:
+  kro-render:
+    name: kro HetznerWebStack render test (kind)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: hkic-composition
+
+      - name: Install kro
+        run: make kro-install
+
+      - name: Wait for kro deployment
+        run: |
+          kubectl rollout status deployment/kro -n kro-system --timeout=120s
+
+      - name: Install HKIC CRDs only
+        run: kubectl apply -f config/crd/bases/
+
+      - name: Apply HetznerWebStack RGD
+        run: kubectl apply -f composition/kro/hetznerwebstack/rgd.yaml
+
+      - name: Wait for RGD to become Active
+        run: |
+          for i in $(seq 1 60); do
+            state=$(kubectl get rgd hetznerwebstack -o jsonpath='{.status.state}' 2>/dev/null || true)
+            if [ "$state" = "ACTIVE" ] || [ "$state" = "Active" ]; then
+              echo "RGD active"
+              exit 0
+            fi
+            sleep 2
+          done
+          kubectl get rgd hetznerwebstack -o yaml
+          exit 1
+
+      - name: Apply example instance
+        run: kubectl apply -f composition/kro/hetznerwebstack/instance-example.yaml
+
+      - name: Wait for child CRs
+        run: |
+          for kind in hcloudnetwork hcloudserver hcloudvolume hcloudloadbalancer; do
+            kubectl wait --for=condition=Established crd/${kind}s.infra.hkc.io --timeout=60s 2>/dev/null || true
+          done
+          for i in $(seq 1 60); do
+            if kubectl get hcloudnetwork demo-net hcloudserver demo-srv hcloudvolume demo-vol hcloudloadbalancer demo-lb &>/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          kubectl get hetznerwebstack,hcn,hcs,hcv,hclb 2>/dev/null || true
+          exit 1
+
+      - name: Assert propagated spec fields
+        run: chmod +x composition/kro/test/assert.sh && make composition-assert STACK=demo
+
+      - name: Dry-run lint (kubeconform optional fallback)
+        run: |
+          kubectl apply --dry-run=client -f composition/kro/hetznerwebstack/rgd.yaml
+          kubectl apply --dry-run=client -f composition/kro/hetznerwebstack/instance-example.yaml
