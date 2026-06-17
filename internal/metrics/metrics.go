@@ -77,3 +77,13 @@ func RecordAPI(operation, result string, duration time.Duration) {
 	apiRequestsTotal.WithLabelValues(operation, result).Inc()
 	apiRequestDuration.WithLabelValues(operation).Observe(duration.Seconds())
 }
+
+// APIRequestsCounter exposes the API requests counter (for tests).
+func APIRequestsCounter() *prometheus.CounterVec {
+	return apiRequestsTotal
+}
+
+// APIRequestDurationHistogram exposes the API request duration histogram (for tests).
+func APIRequestDurationHistogram() *prometheus.HistogramVec {
+	return apiRequestDuration
+}

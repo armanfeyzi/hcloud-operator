@@ -19,8 +19,8 @@ Tracked on GitHub milestone **[HKIC: Operator & GitOps platform](https://github.
 |---|---|---|
 | **High (now)** | Helm chart — operator image, token secret, values for install/upgrade | #12 |
 | **High (now)** | Argo CD Application(s) — sync waves for a full HKIC stack | #13 |
-| Medium (in progress) | Observability — Events, Prometheus metrics, richer conditions; shared base reconciler (Server migrated) | #11 |
-| Medium | kro / Crossplane composition recipes | #16 |
+| Medium (in progress) | Observability — Events, Prometheus metrics, richer conditions; shared base reconciler (**all controllers migrated**) | #11 |
+| Out of scope (repo) | kro / Crossplane abstractions — users compose HKIC CRDs in their own tooling ([#16](https://github.com/armanfeyzi/hcloud-operator/issues/16) discussion only) |
 | Lower | Multi-cluster / multi-token docs | #15 |
 | Lower | Optional CI E2E against real Hetzner | #14 |
 | Deferred (M1) | `HCloudSSHKey` CRD — reference-by-name on Server is enough for most teams | #8 |
@@ -63,7 +63,7 @@ Tracked on GitHub milestone **[HKIC: Hetzner Cloud CRD coverage](https://github.
 - [x] Load balancer reconciler watches `HCloudServer` so label / status changes re-sync targets without waiting for periodic requeue
 - [x] **`Watches` on `HCloudServer` from `HCloudVolume`** — re-attach as soon as `status.serverID` appears
 - [x] **Conflict-safe status updates** — retry-on-conflict for controller status writes
-- [~] **Observability** — Kubernetes `Events`, Prometheus metrics, richer conditions (#11) — **Milestone 2, in progress**. Shared generic base reconciler (`internal/reconcile`) now owns the loop skeleton, the `Synced` condition, Events, reconcile metrics (`internal/metrics`), and retry-on-conflict status writes; **`HCloudServer` migrated as the reference template**. Remaining: migrate the other 8 controllers, add the hcloud client API-metrics wrapper, and `docs/observability.md`. Leader election now defaults **on** (lease RBAC added).
+- [~] **Observability** — Kubernetes `Events`, Prometheus metrics (`internal/metrics` + `hcloud.Instrument()` API wrapper), richer conditions (#11) — **Milestone 2, largely complete**. Shared generic base reconciler (`internal/reconcile`) owns the loop skeleton, `Synced` condition, Events, and reconcile metrics; **all nine controllers** use the base. See [docs/observability.md](observability.md). Leader election defaults **on**. Remaining: optional real-Hetzner E2E (#14).
 
 ## Phase 3: Networking — **Complete**
 - [x] `HCloudNetwork` CRD and reconciler
@@ -75,7 +75,7 @@ Tracked on GitHub milestone **[HKIC: Hetzner Cloud CRD coverage](https://github.
 - [x] **Argo CD examples** — [examples/argo/](../examples/argo/README.md) (#13)
 - [ ] Optional **CI E2E** against real Hetzner when `HCLOUD_TOKEN` is present in repo secrets (#14)
 - [ ] Multi-cluster / multi-token patterns (documentation first) (#15)
-- [ ] Higher-level abstractions with [kro](https://github.com/kubernetes-sigs/kro) or Crossplane Compositions (recipes + docs) (#16)
+- [ ] Higher-level abstractions ([kro](https://github.com/kubernetes-sigs/kro), Crossplane, …) — **not shipped in this repo**; use `config/samples/complex/*` as raw-CRD composition baselines (#16)
 
 ## Optional: k3s-on-Hetzner composition recipes
 

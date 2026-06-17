@@ -9,16 +9,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrav1alpha1 "github.com/armanfeyzi/hcloud-operator/api/v1alpha1"
 	hcloudclient "github.com/armanfeyzi/hcloud-operator/internal/hcloud"
+	basereconcile "github.com/armanfeyzi/hcloud-operator/internal/reconcile"
 )
 
 const hcloudVolumeFinalizer = "infra.hkc.io/volume-finalizer"
@@ -36,6 +35,12 @@ type HCloudVolumeReconciler struct {
 }
 
 func (r *HCloudVolumeReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	base := &basereconcile.BaseReconciler[*infrav1alpha1.HCloudVolume]{
+		Client:   r.Client,
+		Recorder: mgr.GetEventRecorderFor("hcloud-volume"),
+		Resource: r,
+	}
+
 	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &infrav1alpha1.HCloudVolume{}, hcloudVolumeByServerRefNameField, func(rawObj client.Object) []string {
 		vol, ok := rawObj.(*infrav1alpha1.HCloudVolume)
 		if !ok || vol.Spec.ServerRef == nil || vol.Spec.ServerRef.Name == "" {
@@ -52,8 +57,16 @@ func (r *HCloudVolumeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			&infrav1alpha1.HCloudServer{},
 			handler.EnqueueRequestsFromMapFunc(r.mapServerToVolumes),
 		).
-		Complete(r)
+		Complete(base)
 }
+
+func (r *HCloudVolumeReconciler) NewObject() *infrav1alpha1.HCloudVolume {
+	return &infrav1alpha1.HCloudVolume{}
+}
+
+func (r *HCloudVolumeReconciler) FinalizerName() string { return hcloudVolumeFinalizer }
+
+func (r *HCloudVolumeReconciler) Kind() string { return "HCloudVolume" }
 
 func (r *HCloudVolumeReconciler) mapServerToVolumes(ctx context.Context, obj client.Object) []reconcile.Request {
 	server, ok := obj.(*infrav1alpha1.HCloudServer)
@@ -78,44 +91,9 @@ func (r *HCloudVolumeReconciler) mapServerToVolumes(ctx context.Context, obj cli
 	return requests
 }
 
-func (r *HCloudVolumeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *HCloudVolumeReconciler) Reconcile(ctx context.Context, volume *infrav1alpha1.HCloudVolume) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 
-	volume := &infrav1alpha1.HCloudVolume{}
-	if err := r.Get(ctx, req.NamespacedName, volume); err != nil {
-		return ctrl.Result{}, client.IgnoreNotFound(err)
-	}
-
-	// ── 1. Handle Deletion ───────────────────────────────────────────────────
-	if !volume.DeletionTimestamp.IsZero() {
-		if controllerutil.ContainsFinalizer(volume, hcloudVolumeFinalizer) {
-			log.Info("Handling deletion", "volumeID", volume.Status.VolumeID)
-			if volume.Status.VolumeID != 0 {
-				if err := r.detachVolumeIfAttached(ctx, volume); err != nil {
-					return ctrl.Result{}, err
-				}
-				if err := r.HCloudClient.DeleteVolume(ctx, volume.Status.VolumeID); err != nil {
-					return ctrl.Result{}, fmt.Errorf("delete volume: %w", err)
-				}
-			}
-			controllerutil.RemoveFinalizer(volume, hcloudVolumeFinalizer)
-			if err := r.Update(ctx, volume); err != nil {
-				return ctrl.Result{}, fmt.Errorf("remove finalizer: %w", err)
-			}
-		}
-		return ctrl.Result{}, nil
-	}
-
-	// ── 2. Ensure finalizer ──────────────────────────────────────────────────
-	if !controllerutil.ContainsFinalizer(volume, hcloudVolumeFinalizer) {
-		controllerutil.AddFinalizer(volume, hcloudVolumeFinalizer)
-		if err := r.Update(ctx, volume); err != nil {
-			return ctrl.Result{}, fmt.Errorf("add finalizer: %w", err)
-		}
-		return ctrl.Result{Requeue: true}, nil
-	}
-
-	// ── 3. Resolve Target Server ─────────────────────────────────────────────
 	var targetServerID int64
 	if volume.Spec.ServerRef != nil {
 		serverObj := &infrav1alpha1.HCloudServer{}
@@ -128,7 +106,6 @@ func (r *HCloudVolumeReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			if apierrors.IsNotFound(err) {
 				log.Info("Waiting for target server to be created", "server", volume.Spec.ServerRef.Name)
 				r.setCondition(volume, conditionTypeReady, metav1.ConditionFalse, "ServerPending", "Target server not found")
-				_ = r.updateVolumeStatusWithRetry(ctx, volume)
 				return ctrl.Result{RequeueAfter: requeueDelay}, nil
 			}
 			return ctrl.Result{}, fmt.Errorf("get target server: %w", err)
@@ -137,21 +114,27 @@ func (r *HCloudVolumeReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		if serverObj.Status.ServerID == 0 {
 			log.Info("Waiting for target server to be provisioned", "server", volume.Spec.ServerRef.Name)
 			r.setCondition(volume, conditionTypeReady, metav1.ConditionFalse, "ServerPending", "Target server not yet provisioned in Hetzner")
-			_ = r.updateVolumeStatusWithRetry(ctx, volume)
 			return ctrl.Result{RequeueAfter: requeueDelay}, nil
 		}
 
 		targetServerID = serverObj.Status.ServerID
 	}
 
-	// ── 4. Reconcile Hetzner Volume ──────────────────────────────────────────
 	if err := r.reconcileHCloudVolume(ctx, volume, targetServerID); err != nil {
-		r.setCondition(volume, conditionTypeReady, metav1.ConditionFalse, "ReconcileError", err.Error())
-		_ = r.updateVolumeStatusWithRetry(ctx, volume)
 		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{RequeueAfter: requeueDelay}, nil
+}
+
+func (r *HCloudVolumeReconciler) Delete(ctx context.Context, volume *infrav1alpha1.HCloudVolume) error {
+	if volume.Status.VolumeID == 0 {
+		return nil
+	}
+	if err := r.detachVolumeIfAttached(ctx, volume); err != nil {
+		return err
+	}
+	return r.HCloudClient.DeleteVolume(ctx, volume.Status.VolumeID)
 }
 
 func (r *HCloudVolumeReconciler) detachVolumeIfAttached(ctx context.Context, volume *infrav1alpha1.HCloudVolume) error {
@@ -263,7 +246,7 @@ func (r *HCloudVolumeReconciler) reconcileHCloudVolume(ctx context.Context, obj 
 	}
 	r.setCondition(obj, conditionTypeReady, metav1.ConditionTrue, "VolumeReady", "Volume is provisioned and attached")
 
-	return r.updateVolumeStatusWithRetry(ctx, obj)
+	return nil
 }
 
 func (r *HCloudVolumeReconciler) setCondition(
@@ -278,19 +261,5 @@ func (r *HCloudVolumeReconciler) setCondition(
 		Reason:             reason,
 		Message:            message,
 		LastTransitionTime: metav1.Now(),
-	})
-}
-
-func (r *HCloudVolumeReconciler) updateVolumeStatusWithRetry(ctx context.Context, obj *infrav1alpha1.HCloudVolume) error {
-	key := types.NamespacedName{Name: obj.Name, Namespace: obj.Namespace}
-	desiredStatus := obj.Status.DeepCopy()
-
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current := &infrav1alpha1.HCloudVolume{}
-		if err := r.Get(ctx, key, current); err != nil {
-			return err
-		}
-		current.Status = *desiredStatus.DeepCopy()
-		return r.Status().Update(ctx, current)
 	})
 }

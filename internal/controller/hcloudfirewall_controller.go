@@ -10,15 +10,12 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	infrav1alpha1 "github.com/armanfeyzi/hcloud-operator/api/v1alpha1"
 	hcloudclient "github.com/armanfeyzi/hcloud-operator/internal/hcloud"
+	basereconcile "github.com/armanfeyzi/hcloud-operator/internal/reconcile"
 )
 
 const hcloudFirewallFinalizer = "infra.hkc.io/firewall-finalizer"
@@ -35,48 +32,36 @@ type HCloudFirewallReconciler struct {
 }
 
 func (r *HCloudFirewallReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	base := &basereconcile.BaseReconciler[*infrav1alpha1.HCloudFirewall]{
+		Client:   r.Client,
+		Recorder: mgr.GetEventRecorderFor("hcloud-firewall"),
+		Resource: r,
+	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrav1alpha1.HCloudFirewall{}).
-		Complete(r)
+		Complete(base)
 }
 
-func (r *HCloudFirewallReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := log.FromContext(ctx)
+func (r *HCloudFirewallReconciler) NewObject() *infrav1alpha1.HCloudFirewall {
+	return &infrav1alpha1.HCloudFirewall{}
+}
 
-	fw := &infrav1alpha1.HCloudFirewall{}
-	if err := r.Get(ctx, req.NamespacedName, fw); err != nil {
-		return ctrl.Result{}, client.IgnoreNotFound(err)
-	}
+func (r *HCloudFirewallReconciler) FinalizerName() string { return hcloudFirewallFinalizer }
 
-	if !fw.DeletionTimestamp.IsZero() {
-		if controllerutil.ContainsFinalizer(fw, hcloudFirewallFinalizer) {
-			log.Info("Handling firewall deletion", "firewallID", fw.Status.FirewallID)
-			if err := r.deleteHCloudFirewall(ctx, fw); err != nil {
-				return ctrl.Result{}, fmt.Errorf("delete Hetzner firewall: %w", err)
-			}
-			controllerutil.RemoveFinalizer(fw, hcloudFirewallFinalizer)
-			if err := r.Update(ctx, fw); err != nil {
-				return ctrl.Result{}, fmt.Errorf("remove finalizer: %w", err)
-			}
-		}
-		return ctrl.Result{}, nil
-	}
+func (r *HCloudFirewallReconciler) Kind() string { return "HCloudFirewall" }
 
-	if !controllerutil.ContainsFinalizer(fw, hcloudFirewallFinalizer) {
-		controllerutil.AddFinalizer(fw, hcloudFirewallFinalizer)
-		if err := r.Update(ctx, fw); err != nil {
-			return ctrl.Result{}, fmt.Errorf("add finalizer: %w", err)
-		}
-		return ctrl.Result{Requeue: true}, nil
-	}
-
+func (r *HCloudFirewallReconciler) Reconcile(ctx context.Context, fw *infrav1alpha1.HCloudFirewall) (ctrl.Result, error) {
 	if err := r.reconcileHCloudFirewall(ctx, fw); err != nil {
-		r.setFirewallCondition(fw, conditionTypeReady, metav1.ConditionFalse, "ReconcileError", err.Error())
-		_ = r.updateFirewallStatusWithRetry(ctx, fw)
 		return ctrl.Result{}, err
 	}
-
 	return ctrl.Result{RequeueAfter: requeueDelay}, nil
+}
+
+func (r *HCloudFirewallReconciler) Delete(ctx context.Context, fw *infrav1alpha1.HCloudFirewall) error {
+	if fw.Status.FirewallID == 0 {
+		return nil
+	}
+	return r.HCloudClient.DeleteFirewall(ctx, fw.Status.FirewallID)
 }
 
 func (r *HCloudFirewallReconciler) reconcileHCloudFirewall(ctx context.Context, obj *infrav1alpha1.HCloudFirewall) error {
@@ -112,7 +97,7 @@ func (r *HCloudFirewallReconciler) reconcileHCloudFirewall(ctx context.Context, 
 		}
 		obj.Status.FirewallID = created.ID
 		r.setFirewallCondition(obj, conditionTypeReady, metav1.ConditionTrue, "FirewallCreated", "Firewall created in Hetzner Cloud")
-		return r.updateFirewallStatusWithRetry(ctx, obj)
+		return nil
 	}
 
 	obj.Status.FirewallID = existing.ID
@@ -156,7 +141,7 @@ func (r *HCloudFirewallReconciler) reconcileHCloudFirewall(ctx context.Context, 
 	}
 
 	r.setFirewallCondition(obj, conditionTypeReady, metav1.ConditionTrue, "FirewallReady", "Firewall rules and attachments are in sync")
-	return r.updateFirewallStatusWithRetry(ctx, obj)
+	return nil
 }
 
 func (r *HCloudFirewallReconciler) desiredApplyResources(ctx context.Context, fw *infrav1alpha1.HCloudFirewall) ([]hcloudclient.FirewallApplyResource, error) {
@@ -192,13 +177,6 @@ func (r *HCloudFirewallReconciler) desiredApplyResources(ctx context.Context, fw
 		})
 	}
 	return out, nil
-}
-
-func (r *HCloudFirewallReconciler) deleteHCloudFirewall(ctx context.Context, obj *infrav1alpha1.HCloudFirewall) error {
-	if obj.Status.FirewallID == 0 {
-		return nil
-	}
-	return r.HCloudClient.DeleteFirewall(ctx, obj.Status.FirewallID)
 }
 
 func (r *HCloudFirewallReconciler) setFirewallCondition(
@@ -318,18 +296,4 @@ func partitionApplyTargets(current, desired []hcloudclient.FirewallApplyResource
 		}
 	}
 	return remove, add
-}
-
-func (r *HCloudFirewallReconciler) updateFirewallStatusWithRetry(ctx context.Context, obj *infrav1alpha1.HCloudFirewall) error {
-	key := types.NamespacedName{Name: obj.Name, Namespace: obj.Namespace}
-	desiredStatus := obj.Status.DeepCopy()
-
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current := &infrav1alpha1.HCloudFirewall{}
-		if err := r.Get(ctx, key, current); err != nil {
-			return err
-		}
-		current.Status = *desiredStatus.DeepCopy()
-		return r.Status().Update(ctx, current)
-	})
 }

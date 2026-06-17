@@ -25,6 +25,7 @@ ENVTEST_VERSION          ?= release-0.19
 # and envtest fails with "unable to start control plane".
 ENVTEST_K8S_VERSION      ?= 1.31.0
 
+# kro (composition layer) — pinned for RGD API compatibility
 # Tool binary locations
 LOCALBIN    ?= $(shell pwd)/bin
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen

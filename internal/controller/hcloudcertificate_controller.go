@@ -7,15 +7,13 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	infrav1alpha1 "github.com/armanfeyzi/hcloud-operator/api/v1alpha1"
 	hcloudclient "github.com/armanfeyzi/hcloud-operator/internal/hcloud"
+	basereconcile "github.com/armanfeyzi/hcloud-operator/internal/reconcile"
 )
 
 const hcloudCertificateFinalizer = "infra.hkc.io/certificate-finalizer"
@@ -31,54 +29,41 @@ type HCloudCertificateReconciler struct {
 }
 
 func (r *HCloudCertificateReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	base := &basereconcile.BaseReconciler[*infrav1alpha1.HCloudCertificate]{
+		Client:   r.Client,
+		Recorder: mgr.GetEventRecorderFor("hcloud-certificate"),
+		Resource: r,
+	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrav1alpha1.HCloudCertificate{}).
-		Complete(r)
+		Complete(base)
 }
 
-func (r *HCloudCertificateReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := log.FromContext(ctx)
+func (r *HCloudCertificateReconciler) NewObject() *infrav1alpha1.HCloudCertificate {
+	return &infrav1alpha1.HCloudCertificate{}
+}
 
-	cert := &infrav1alpha1.HCloudCertificate{}
-	if err := r.Get(ctx, req.NamespacedName, cert); err != nil {
-		return ctrl.Result{}, client.IgnoreNotFound(err)
-	}
+func (r *HCloudCertificateReconciler) FinalizerName() string { return hcloudCertificateFinalizer }
 
-	if !cert.DeletionTimestamp.IsZero() {
-		if controllerutil.ContainsFinalizer(cert, hcloudCertificateFinalizer) {
-			log.Info("Handling certificate deletion", "certificateID", cert.Status.CertificateID)
-			if err := r.deleteHCloudCertificate(ctx, cert); err != nil {
-				return ctrl.Result{}, fmt.Errorf("delete Hetzner certificate: %w", err)
-			}
-			controllerutil.RemoveFinalizer(cert, hcloudCertificateFinalizer)
-			if err := r.Update(ctx, cert); err != nil {
-				return ctrl.Result{}, fmt.Errorf("remove finalizer: %w", err)
-			}
-		}
-		return ctrl.Result{}, nil
-	}
+func (r *HCloudCertificateReconciler) Kind() string { return "HCloudCertificate" }
 
-	if !controllerutil.ContainsFinalizer(cert, hcloudCertificateFinalizer) {
-		controllerutil.AddFinalizer(cert, hcloudCertificateFinalizer)
-		if err := r.Update(ctx, cert); err != nil {
-			return ctrl.Result{}, fmt.Errorf("add finalizer: %w", err)
-		}
-		return ctrl.Result{Requeue: true}, nil
-	}
-
+func (r *HCloudCertificateReconciler) Reconcile(ctx context.Context, cert *infrav1alpha1.HCloudCertificate) (ctrl.Result, error) {
 	pending, err := r.reconcileHCloudCertificate(ctx, cert)
 	if err != nil {
-		r.setCertificateCondition(cert, conditionTypeReady, metav1.ConditionFalse, "ReconcileError", err.Error())
-		_ = r.updateCertificateStatusWithRetry(ctx, cert)
 		return ctrl.Result{}, err
 	}
 	if pending {
 		r.setCertificateCondition(cert, conditionTypeReady, metav1.ConditionFalse, "CertificatePending", "Waiting for managed certificate issuance")
-		_ = r.updateCertificateStatusWithRetry(ctx, cert)
 		return ctrl.Result{RequeueAfter: requeueDelay}, nil
 	}
-
 	return ctrl.Result{RequeueAfter: requeueDelay}, nil
+}
+
+func (r *HCloudCertificateReconciler) Delete(ctx context.Context, cert *infrav1alpha1.HCloudCertificate) error {
+	if cert.Status.CertificateID == 0 {
+		return nil
+	}
+	return r.HCloudClient.DeleteCertificate(ctx, cert.Status.CertificateID)
 }
 
 func (r *HCloudCertificateReconciler) reconcileHCloudCertificate(ctx context.Context, obj *infrav1alpha1.HCloudCertificate) (bool, error) {
@@ -134,9 +119,6 @@ func (r *HCloudCertificateReconciler) reconcileHCloudCertificate(ctx context.Con
 	}
 
 	r.setCertificateCondition(obj, conditionTypeReady, metav1.ConditionTrue, "CertificateReady", "Certificate is provisioned")
-	if err := r.updateCertificateStatusWithRetry(ctx, obj); err != nil {
-		return false, err
-	}
 	return false, nil
 }
 
@@ -167,13 +149,6 @@ func (r *HCloudCertificateReconciler) syncCertificateStatus(obj *infrav1alpha1.H
 	}
 }
 
-func (r *HCloudCertificateReconciler) deleteHCloudCertificate(ctx context.Context, obj *infrav1alpha1.HCloudCertificate) error {
-	if obj.Status.CertificateID == 0 {
-		return nil
-	}
-	return r.HCloudClient.DeleteCertificate(ctx, obj.Status.CertificateID)
-}
-
 func (r *HCloudCertificateReconciler) setCertificateCondition(
 	obj *infrav1alpha1.HCloudCertificate,
 	condType string,
@@ -186,19 +161,5 @@ func (r *HCloudCertificateReconciler) setCertificateCondition(
 		Reason:             reason,
 		Message:            message,
 		LastTransitionTime: metav1.Now(),
-	})
-}
-
-func (r *HCloudCertificateReconciler) updateCertificateStatusWithRetry(ctx context.Context, obj *infrav1alpha1.HCloudCertificate) error {
-	key := types.NamespacedName{Name: obj.Name, Namespace: obj.Namespace}
-	desiredStatus := obj.Status.DeepCopy()
-
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current := &infrav1alpha1.HCloudCertificate{}
-		if err := r.Get(ctx, key, current); err != nil {
-			return err
-		}
-		current.Status = *desiredStatus.DeepCopy()
-		return r.Status().Update(ctx, current)
 	})
 }
