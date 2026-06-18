@@ -1,0 +1,32 @@
+name: E2E (real Hetzner)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  e2e-real:
+    name: Real Hetzner E2E
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || secrets.HCLOUD_TOKEN != '' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: true
+
+      - name: Run real-Hetzner E2E
+        env:
+          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+        run: |
+          if [ -z "$HCLOUD_TOKEN" ]; then
+            echo "HCLOUD_TOKEN secret is not set; skipping real-Hetzner E2E."
+            exit 0
+          fi
+          make test-e2e-real

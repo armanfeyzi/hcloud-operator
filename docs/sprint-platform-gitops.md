@@ -113,6 +113,10 @@ wave  3: HCloudLoadBalancer (depends on server labels / certificateRefs)
 
 ## Follow-on (next sprint, not this one)
 
-- **#11 Observability** — Events and metrics on existing controllers
-- **#16 kro/Crossplane** — composition wrapping the same CRDs the Argo example uses
-- **#14 CI E2E** — optional job using `HCLOUD_TOKEN` secret to apply Argo manifests or helm + one server create/delete
+- **#15 Multi-cluster / multi-token** — documentation for multiple Hetzner projects and management clusters
+- **#16 kro/Crossplane** — out of repo scope; users compose HKIC CRDs in their own tooling
+
+### Shipped since this sprint
+
+- **#11 Observability** — shared base reconciler, Events, Prometheus metrics, `Synced`/`Ready` conditions ([docs/observability.md](observability.md))
+- **#14 CI E2E** — opt-in real-Hetzner test (`e2e_real` build tag, `make test-e2e-real`, `.github/workflows/e2e-real.yaml`)

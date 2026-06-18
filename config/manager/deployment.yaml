@@ -24,7 +24,7 @@ spec:
         image: localhost/hcloud-operator:dev
         imagePullPolicy: IfNotPresent
         args:
-        - --leader-elect=false
+        - --leader-elect=true
         env:
         - name: HCLOUD_TOKEN
           valueFrom:

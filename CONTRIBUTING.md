@@ -27,6 +27,13 @@ To keep things simple and avoid over-engineering, we follow a lightweight workfl
    make test
    ```
 
+   **Optional — real Hetzner E2E** (creates and deletes a cheap `cx22` server; requires `HCLOUD_TOKEN`):
+   ```bash
+   export HCLOUD_TOKEN="your-hetzner-cloud-token"
+   make test-e2e-real
+   ```
+   This target uses the `e2e_real` build tag and is **not** part of the default `make test` gate. CI runs it on `workflow_dispatch` or when the `HCLOUD_TOKEN` repository secret is configured (see `.github/workflows/e2e-real.yaml`).
+
 4. **Testing Locally:**
    You can run the operator locally against your Kubernetes cluster (ensure you have the `HCLOUD_TOKEN` exported in your environment):
    ```bash

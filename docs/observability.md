@@ -87,7 +87,18 @@ Enable a metrics `Service` in chart values if your deployment does not already e
 
 ## Leader election
 
-Leader election defaults **on** (`--leader-elect=true`) so running more than one operator replica is safe. Lease RBAC is included in the Helm chart ClusterRole.
+Leader election defaults **on** (`--leader-elect=true`) so running more than one operator replica is safe. Lease RBAC is included in the Helm chart ClusterRole and kustomize `config/manager/deployment.yaml`.
+
+## Real-Hetzner E2E (#14)
+
+Opt-in regression test against the live Hetzner API (not part of `make test`):
+
+```bash
+export HCLOUD_TOKEN="..."
+make test-e2e-real
+```
+
+Uses build tag `e2e_real`, creates a cheap `cx22` server in `fsn1`, waits for `Synced`/`Ready`, deletes the CR, and asserts Hetzner-side cleanup. CI: `.github/workflows/e2e-real.yaml` (`workflow_dispatch` or when `HCLOUD_TOKEN` repo secret is set).
 
 ## Related docs
 

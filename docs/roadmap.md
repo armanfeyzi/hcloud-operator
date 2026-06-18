@@ -13,17 +13,17 @@ The **primary** goal of **Hetzner Kubernetes Infrastructure Controller (HKIC)** 
 
 **Milestone 1 (Hetzner Cloud CRD coverage) is complete** except optional deferred work ([#8](https://github.com/armanfeyzi/hcloud-operator/issues/8) SSH keys). Production GitOps adoption now depends on **install paths and examples**, not new resource CRDs.
 
-Tracked on GitHub milestone **[HKIC: Operator & GitOps platform](https://github.com/armanfeyzi/hcloud-operator/milestone/2)** (issues #11–#16). **Next sprint:** [#12 Helm chart](https://github.com/armanfeyzi/hcloud-operator/issues/12) and [#13 Argo CD examples](https://github.com/armanfeyzi/hcloud-operator/issues/13) — see [docs/sprint-platform-gitops.md](sprint-platform-gitops.md).
+Tracked on GitHub milestone **[HKIC: Operator & GitOps platform](https://github.com/armanfeyzi/hcloud-operator/milestone/2)** (issues #11–#16). **Next:** [#15 multi-cluster docs](https://github.com/armanfeyzi/hcloud-operator/issues/15) and optional manual GitOps smoke tests — see [docs/sprint-platform-gitops.md](sprint-platform-gitops.md).
 
 | Priority | Work | Issue |
 |---|---|---|
-| **High (now)** | Helm chart — operator image, token secret, values for install/upgrade | #12 |
-| **High (now)** | Argo CD Application(s) — sync waves for a full HKIC stack | #13 |
-| Medium (in progress) | Observability — Events, Prometheus metrics, richer conditions; shared base reconciler (**all controllers migrated**) | #11 |
+| **High (now)** | Multi-cluster / multi-token patterns (documentation) | #15 |
 | Out of scope (repo) | kro / Crossplane abstractions — users compose HKIC CRDs in their own tooling ([#16](https://github.com/armanfeyzi/hcloud-operator/issues/16) discussion only) |
-| Lower | Multi-cluster / multi-token docs | #15 |
-| Lower | Optional CI E2E against real Hetzner | #14 |
 | Deferred (M1) | `HCloudSSHKey` CRD — reference-by-name on Server is enough for most teams | #8 |
+| **Complete** | Helm chart — operator image, token secret, values for install/upgrade | #12 |
+| **Complete** | Argo CD Application(s) — sync waves for a full HKIC stack | #13 |
+| **Complete** | Observability — Events, Prometheus metrics, richer conditions; shared base reconciler (**all nine controllers migrated**) | #11 |
+| **Complete** | Opt-in CI E2E against real Hetzner (`e2e_real` build tag, `make test-e2e-real`) | #14 |
 
 ## Milestone 1 — Hetzner Cloud API coverage — **Complete**
 
@@ -63,7 +63,7 @@ Tracked on GitHub milestone **[HKIC: Hetzner Cloud CRD coverage](https://github.
 - [x] Load balancer reconciler watches `HCloudServer` so label / status changes re-sync targets without waiting for periodic requeue
 - [x] **`Watches` on `HCloudServer` from `HCloudVolume`** — re-attach as soon as `status.serverID` appears
 - [x] **Conflict-safe status updates** — retry-on-conflict for controller status writes
-- [~] **Observability** — Kubernetes `Events`, Prometheus metrics (`internal/metrics` + `hcloud.Instrument()` API wrapper), richer conditions (#11) — **Milestone 2, largely complete**. Shared generic base reconciler (`internal/reconcile`) owns the loop skeleton, `Synced` condition, Events, and reconcile metrics; **all nine controllers** use the base. See [docs/observability.md](observability.md). Leader election defaults **on**. Remaining: optional real-Hetzner E2E (#14).
+- [x] **Observability** — Kubernetes `Events`, Prometheus metrics (`internal/metrics` + `hcloud.Instrument()` API wrapper), richer conditions (#11). Shared generic base reconciler (`internal/reconcile`) owns the loop skeleton, `Synced` condition, Events, and reconcile metrics; **all nine controllers** use the base. See [docs/observability.md](observability.md). Leader election defaults **on**.
 
 ## Phase 3: Networking — **Complete**
 - [x] `HCloudNetwork` CRD and reconciler
@@ -73,7 +73,7 @@ Tracked on GitHub milestone **[HKIC: Hetzner Cloud CRD coverage](https://github.
 ## Phase 4: GitOps & platform engineering — **Current focus**
 - [x] **Helm chart** — [charts/hcloud-operator/](../charts/hcloud-operator/README.md), `make helm-lint` (#12)
 - [x] **Argo CD examples** — [examples/argo/](../examples/argo/README.md) (#13)
-- [ ] Optional **CI E2E** against real Hetzner when `HCLOUD_TOKEN` is present in repo secrets (#14)
+- [x] **CI E2E** against real Hetzner when `HCLOUD_TOKEN` is present in repo secrets (#14) — `.github/workflows/e2e-real.yaml`, `make test-e2e-real`
 - [ ] Multi-cluster / multi-token patterns (documentation first) (#15)
 - [ ] Higher-level abstractions ([kro](https://github.com/kubernetes-sigs/kro), Crossplane, …) — **not shipped in this repo**; use `config/samples/complex/*` as raw-CRD composition baselines (#16)
 

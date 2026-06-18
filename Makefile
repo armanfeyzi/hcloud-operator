@@ -86,10 +86,13 @@ test: manifests generate fmt vet setup-envtest ## Run unit/integration tests
 	KUBEBUILDER_ASSETS="$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
 		go test ./... -coverprofile cover.out -v
 
-.PHONY: test-e2e
-test-e2e: manifests generate fmt vet setup-envtest ## Run end-to-end tests (requires real HCLOUD_TOKEN and cluster)
+.PHONY: test-e2e-real
+test-e2e-real: manifests generate fmt vet setup-envtest ## Run opt-in real-Hetzner E2E (requires HCLOUD_TOKEN; build tag e2e_real)
 	KUBEBUILDER_ASSETS="$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
-		go test ./test/e2e/... -v -timeout 30m
+		go test -tags e2e_real ./test/e2e/... -v -timeout 30m
+
+.PHONY: test-e2e
+test-e2e: test-e2e-real ## Alias for test-e2e-real
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Docker
