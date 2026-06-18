@@ -10,7 +10,6 @@ jobs:
   e2e-real:
     name: Real Hetzner E2E
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'workflow_dispatch' || secrets.HCLOUD_TOKEN != '' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
