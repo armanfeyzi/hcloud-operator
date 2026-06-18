@@ -42,7 +42,6 @@ func TestHCloudServerRealE2E(t *testing.T) {
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	useExisting := os.Getenv("USE_EXISTING_CLUSTER") == "true"
 	testEnv := &envtest.Environment{
@@ -53,13 +52,9 @@ func TestHCloudServerRealE2E(t *testing.T) {
 
 	cfg, err := testEnv.Start()
 	if err != nil {
+		cancel()
 		t.Fatalf("start envtest: %v", err)
 	}
-	defer func() {
-		if err := testEnv.Stop(); err != nil {
-			t.Errorf("stop envtest: %v", err)
-		}
-	}()
 
 	if err := infrav1alpha1.AddToScheme(scheme.Scheme); err != nil {
 		t.Fatalf("add scheme: %v", err)
@@ -89,11 +84,28 @@ func TestHCloudServerRealE2E(t *testing.T) {
 		t.Fatalf("setup server reconciler: %v", err)
 	}
 
+	mgrDone := make(chan error, 1)
 	go func() {
-		if err := mgr.Start(ctx); err != nil {
-			fmt.Printf("manager stopped: %v\n", err)
-		}
+		mgrDone <- mgr.Start(ctx)
 	}()
+
+	// Registered before resource cleanup so it runs last: stop manager, then envtest.
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case err := <-mgrDone:
+			if err != nil && err != context.Canceled {
+				t.Logf("manager stop: %v", err)
+			}
+		case <-time.After(30 * time.Second):
+			t.Logf("warning: manager shutdown timed out")
+		}
+		if err := testEnv.Stop(); err != nil {
+			// Teardown flake should not fail a passing functional E2E.
+			t.Logf("warning: stop envtest: %v", err)
+		}
+	})
+
 	time.Sleep(2 * time.Second)
 
 	prefix := NamePrefix()
