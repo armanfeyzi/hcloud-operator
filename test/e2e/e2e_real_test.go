@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	e2eServerType = "cx22"
+	e2eServerType = "cx23"
 	e2eImage      = "ubuntu-22.04"
 	e2eLocation   = "fsn1"
 )

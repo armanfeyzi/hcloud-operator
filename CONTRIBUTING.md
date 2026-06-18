@@ -27,7 +27,7 @@ To keep things simple and avoid over-engineering, we follow a lightweight workfl
    make test
    ```
 
-   **Optional — real Hetzner E2E** (creates and deletes a cheap `cx22` server; requires `HCLOUD_TOKEN`):
+   **Optional — real Hetzner E2E** (creates and deletes a cheap `cx23` server; requires `HCLOUD_TOKEN`):
    ```bash
    export HCLOUD_TOKEN="your-hetzner-cloud-token"
    make test-e2e-real

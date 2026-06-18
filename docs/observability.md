@@ -98,7 +98,7 @@ export HCLOUD_TOKEN="..."
 make test-e2e-real
 ```
 
-Uses build tag `e2e_real`, creates a cheap `cx22` server in `fsn1`, waits for `Synced`/`Ready`, deletes the CR, and asserts Hetzner-side cleanup. CI: `.github/workflows/e2e-real.yaml` (`workflow_dispatch` or when `HCLOUD_TOKEN` repo secret is set).
+Uses build tag `e2e_real`, creates a cheap `cx23` server in `fsn1`, waits for `Synced`/`Ready`, deletes the CR, and asserts Hetzner-side cleanup. CI: `.github/workflows/e2e-real.yaml` (`workflow_dispatch` or when `HCLOUD_TOKEN` repo secret is set).
 
 ## Related docs
 
