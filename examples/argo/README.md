@@ -1,6 +1,6 @@
 # Argo CD — HKIC operator + demo stack
 
-GitOps example for [Milestone 2](https://github.com/armanfeyzi/hcloud-operator/milestone/2): install the operator with Helm via Argo CD, then sync a wave-ordered Hetzner stack (network → server → volume → load balancer).
+GitOps example: install the operator with Helm via Argo CD, then sync a wave-ordered Hetzner stack (network → server → volume → load balancer).
 
 ## Prerequisites
 

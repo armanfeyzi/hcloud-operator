@@ -1,10 +1,8 @@
 # Sprint plan: GitOps platform (#12 Helm + #13 Argo CD)
 
-This document scopes the **next implementation sprint** after Milestone 1 (Hetzner Cloud CRDs). It intentionally **does not** include `HCloudSSHKey` ([#8](https://github.com/armanfeyzi/hcloud-operator/issues/8)); SSH keys remain reference-by-name on `HCloudServer` until a user asks for fully declarative key lifecycle.
+This document scopes the **GitOps platform sprint** (Helm + Argo CD), now **complete**. It intentionally **does not** include `HCloudSSHKey` (deferred — Linear [ARM-72](https://linear.app/armanfeyzi/issue/ARM-72)); SSH keys remain reference-by-name on `HCloudServer` until a user asks for fully declarative key lifecycle.
 
-**Goal:** a production-shaped path to install HKIC and declare a **full stack** from Git (Argo CD or Flux) without hand-applying kustomize URLs or ordering CRs manually.
-
-**References:** [roadmap.md](roadmap.md) · GitHub [#12](https://github.com/armanfeyzi/hcloud-operator/issues/12) · [#13](https://github.com/armanfeyzi/hcloud-operator/issues/13) · sample stack `config/samples/complex/hcloud-stack/`
+**References:** [roadmap.md](roadmap.md) · sample stack `config/samples/complex/hcloud-stack/`
 
 ---
 

@@ -1,6 +1,6 @@
 # Hetzner Cloud API coverage matrix
 
-This table maps **Hetzner Cloud API resource families** to **HKIC CRDs**. It is the primary planning doc for the ACK-style main track. See [roadmap.md](roadmap.md) and GitHub milestone **[HKIC: Hetzner Cloud CRD coverage](https://github.com/armanfeyzi/hcloud-operator/milestone/1)**.
+This table maps **Hetzner Cloud API resource families** to **HKIC CRDs**. It is the primary planning doc for the ACK-style main track. See [roadmap.md](roadmap.md). Task tracking: [Linear — HCloud Operator](https://linear.app/armanfeyzi/project/hcloud-operator-a88af6f6c1e8).
 
 **Legend:** **Done** = CRD + reconciler shipped · **Planned** = tracked issue · **Partial** = subset of API surface · **N/A** = intentionally out of scope (with rationale)
 
